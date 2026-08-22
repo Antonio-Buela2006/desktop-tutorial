@@ -1,0 +1,34 @@
+# Project TODO
+
+- [x] Definir o esquema de dados multiempresa para organizações, departamentos, clientes, fornecedores, produtos, armazéns, vendas, faturas, lançamentos, funcionários, presenças, férias, avaliações, entregas, recomendações WILLY e auditoria.
+- [x] Aplicar a migração da base de dados e verificar a criação de todas as tabelas e relações do núcleo operacional.
+- [x] Implementar papéis empresariais granulares: Administrador, Gestor/Diretor, Contabilista, RH, Comercial, Logística e Funcionário.
+- [x] Implementar verificação de permissões por módulo e ação no servidor, incluindo restrições para ações sensíveis.
+- [x] Implementar um layout de aplicação NEXORA responsivo, com navegação lateral, cabeçalho contextual e estados de carregamento e erro.
+- [x] Criar dashboard personalizado por perfil com KPIs de receitas, despesas, margem, stock crítico, tarefas pendentes e tendências operacionais.
+- [ ] Criar o módulo Financeiro com receitas, despesas, fluxo de caixa, orçamentos, contas a pagar, contas a receber e resumo financeiro.
+- [x] Criar o módulo Contabilidade com faturas, diário contabilístico de partida dobrada e histórico de operações.
+- [x] Criar o módulo Comercial/CRM com clientes, catálogo, funil comercial, registo de vendas e histórico de relacionamento.
+- [x] Implementar o fluxo integrado de venda que atualiza stock, gera fatura, cria lançamentos contabilísticos, agenda a entrega e regista auditoria numa única transação.
+- [x] Criar o módulo de Recursos Humanos com funcionários, presenças, férias, avaliações e referências documentais.
+- [x] Criar o módulo Logístico com armazéns, stock, fornecedores, movimentos de inventário e entregas rastreáveis.
+- [x] Implementar o núcleo WILLY com recomendações contextualizadas, justificação, nível de confiança e registo de feedback.
+- [x] Integrar o assistente conversacional WILLY no servidor para perguntas em linguagem natural sobre os dados da empresa, mantendo isolamento de dados por empresa.
+- [ ] Criar deteção de alertas críticos para stock, custos, metas comerciais e pagamentos em atraso.
+- [ ] Configurar o envio automatizado de alertas críticos WILLY por email ao gestor responsável, sujeito à disponibilidade das credenciais de email.
+- [x] Implementar registo de auditoria de ações sensíveis, com dados de ator, ação, entidade, data e resumo da alteração.
+- [x] Disponibilizar exportação de dados e relatórios operacionais em CSV, com estrutura preparada para PDF e Excel.
+- [x] Escrever e executar testes unitários dos cálculos, permissões e explicabilidade do WILLY.
+- [ ] Validar visualmente os principais ecrãs em desktop e telemóvel, corrigindo falhas de acessibilidade e responsividade.
+- [x] Verificar a correspondência completa entre as tabelas, colunas, índices e chaves estrangeiras existentes na base de dados e o esquema Drizzle atual.
+- [x] Corrigir qualquer divergência entre o esquema Drizzle, a migração registada e a estrutura efetivamente aplicada na base de dados.
+- [ ] Criar a gestão administrativa de membros para atribuir e alterar os sete perfis empresariais através da interface.
+- [ ] Acrescentar o ciclo de orçamentos e metas comerciais, permitindo ao WILLY classificar metas em risco com base num objetivo configurado.
+- [ ] Adicionar na interface o ajuste manual de inventário já suportado pelo servidor.
+- [ ] Configurar as credenciais Resend e publicar o projeto antes de ativar o agendamento diário dos alertas críticos por email do WILLY.
+- [ ] Personalizar o dashboard por papel empresarial, variando KPIs, blocos e prioridades por função.
+- [ ] Implementar no CRM funil comercial, interações de relacionamento e análise comercial por cliente.
+- [ ] Adicionar no RH referências documentais por funcionário com ligação ou carregamento seguro.
+- [ ] Expor movimentos de inventário no módulo Logístico para consulta e rastreabilidade operacional.
+- [ ] Criar testes unitários para os cálculos de KPIs, totais e imposto de venda integrada e lançamentos contabilísticos.
+- [ ] Exportar a versão atual do NEXORA para o repositório GitHub autorizado pelo utilizador.

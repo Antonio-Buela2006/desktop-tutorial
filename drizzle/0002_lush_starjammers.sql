@@ -1,0 +1,2 @@
+ALTER TABLE `sales` MODIFY COLUMN `entryStatus` enum('rascunho','pendente','pago','vencido','cancelado','concluido') NOT NULL DEFAULT 'concluido';--> statement-breakpoint
+ALTER TABLE `companies` ADD `willyScheduleCronTaskUid` varchar(65);
