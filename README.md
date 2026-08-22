@@ -6,11 +6,11 @@ Repositório de desenvolvimento de **Antonio-Buela2006**, com aplicações web c
 
 ## Projetos
 
-| Diretório | Projeto | Descrição | Estado |
-| --- | --- | --- | --- |
-| `/` | **NEXORA** | Plataforma de gestão empresarial com operações comerciais, contabilidade, recursos humanos, logística e o assistente WILLY. | Em desenvolvimento |
-| `/kultura-dispatch` | **KULTURA Dispatch** | Publicação editorial sobre cultura, música, tecnologia e opinião, com pesquisa, categorias e páginas de artigo. | Protótipo funcional |
-| `/blog-colunistas` | **Entrelinhas** | Blog de colunistas centrado em opinião, leitura e apresentação editorial. | Protótipo funcional |
+| Diretório           | Projeto              | Descrição                                                                                                                   | Estado              |
+| ------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/`                 | **NEXORA**           | Plataforma de gestão empresarial com operações comerciais, contabilidade, recursos humanos, logística e o assistente WILLY. | Em desenvolvimento  |
+| `/kultura-dispatch` | **KULTURA Dispatch** | Publicação editorial sobre cultura, música, tecnologia e opinião, com pesquisa, categorias e páginas de artigo.             | Protótipo funcional |
+| `/blog-colunistas`  | **Entrelinhas**      | Blog de colunistas centrado em opinião, leitura e apresentação editorial.                                                   | Protótipo funcional |
 
 ## Destaques técnicos do NEXORA
 
@@ -28,13 +28,13 @@ O roteiro completo, incluindo trabalho futuro e itens em validação, está em [
 
 ## Tecnologias
 
-| Área | Tecnologias |
-| --- | --- |
-| Interface | React, Vite, TypeScript, Tailwind CSS, Radix UI |
-| Servidor | Node.js, Express, tRPC, Zod |
-| Dados | MySQL, Drizzle ORM, migrações Drizzle |
-| Qualidade | TypeScript, Vitest, Prettier |
-| Experiências editoriais | React, Vite, Tailwind CSS, Framer Motion |
+| Área                    | Tecnologias                                     |
+| ----------------------- | ----------------------------------------------- |
+| Interface               | React, Vite, TypeScript, Tailwind CSS, Radix UI |
+| Servidor                | Node.js, Express, tRPC, Zod                     |
+| Dados                   | MySQL, Drizzle ORM, migrações Drizzle           |
+| Qualidade               | TypeScript, Vitest, Prettier                    |
+| Experiências editoriais | React, Vite, Tailwind CSS, Framer Motion        |
 
 ## Requisitos
 

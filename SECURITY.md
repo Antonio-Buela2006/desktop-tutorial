@@ -4,9 +4,9 @@
 
 Este projeto está em desenvolvimento ativo. A branch `main` representa o estado principal do repositório; não são prometidas correções de segurança para versões antigas ou branches experimentais.
 
-| Versão | Suporte |
-| --- | --- |
-| `main` | Em desenvolvimento |
+| Versão           | Suporte                 |
+| ---------------- | ----------------------- |
+| `main`           | Em desenvolvimento      |
 | Releases antigas | Sem garantia de suporte |
 
 ## Comunicação responsável
