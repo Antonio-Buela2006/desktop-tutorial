@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html { -webkit-text-size-adjust: 100%; }
+    body { @apply bg-stone-50 text-granite antialiased; }
+    /* Foco sempre visível (acessibilidade) */
+    :focus-visible { outline: 3px solid #b8481a; outline-offset: 2px; }
+    [x-cloak] { display: none !important; }
+}
+
+@layer components {
+    .card { @apply rounded-xl border border-stone-200 bg-white shadow-sm; }
+    .label { @apply mb-1 block text-sm font-semibold text-granite; }
+    .input { @apply block w-full rounded-lg border-stone-300 bg-white px-3 py-2.5 text-base text-granite shadow-sm
+        focus:border-hill focus:ring-2 focus:ring-hill/40; }
+    .input-error { @apply border-rust ring-1 ring-rust; }
+    .error { @apply mt-1 text-sm font-medium text-rust-700; }
+    .hint { @apply mt-1 text-xs text-granite-600; }
+    .btn { @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+        transition focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60; }
+    .btn-primary { @apply btn bg-hill text-white hover:bg-hill-700; }
+    .btn-dark { @apply btn bg-granite text-white hover:bg-granite-700; }
+    .btn-outline { @apply btn border border-stone-300 bg-white text-granite hover:bg-stone-50; }
+    .btn-danger { @apply btn bg-rust text-white hover:bg-rust-700; }
+    .badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold; }
+    .table-wrap { @apply -mx-4 overflow-x-auto sm:mx-0; }
+    .table { @apply min-w-full divide-y divide-stone-200 text-sm; }
+    .table th { @apply whitespace-nowrap bg-stone-50 px-3 py-2 text-left font-semibold text-granite-700; }
+    .table td { @apply px-3 py-2 align-top; }
+    .section-title { @apply font-serif text-lg font-bold text-granite; }
+    /* Faixa inspirada nos padrões de linhas simples usados nos trajes e cartazes da igreja */
+    .stripe { background: linear-gradient(90deg, #4f7a34 0 70%, #ffffff 70% 75%, #b8481a 75% 100%); height: 4px; }
+}

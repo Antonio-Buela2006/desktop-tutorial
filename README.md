@@ -10,6 +10,7 @@ Repositório de desenvolvimento de **Antonio-Buela2006**, com aplicações web c
 | ------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | `/`                 | **NEXORA**           | Plataforma de gestão empresarial com operações comerciais, contabilidade, recursos humanos, logística e o assistente WILLY. | Em desenvolvimento  |
 | `/kultura-dispatch` | **KULTURA Dispatch** | Publicação editorial sobre cultura, música, tecnologia e opinião, com pesquisa, categorias e páginas de artigo.             | Protótipo funcional |
+| `/coral-tocoista`   | **Grupo Coral**      | Gestão do grupo coral e dos fazedores de cultura (Laravel 12, MySQL): cadastro por OTP via WhatsApp, coros, cargos, relatórios e auditoria. | Pronto para produção |
 | `/blog-colunistas`  | **Entrelinhas**      | Blog de colunistas centrado em opinião, leitura e apresentação editorial.                                                   | Protótipo funcional |
 
 ## Destaques técnicos do NEXORA
