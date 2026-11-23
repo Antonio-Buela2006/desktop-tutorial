@@ -58,7 +58,7 @@ function GlobalSearch() {
   return (
     <div className="relative hidden w-72 md:block">
       <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" aria-hidden />
-      <input className="input" style={{ paddingLeft: "2rem" }} placeholder="Pesquisar clientes, produtos, pessoas…" aria-label="Pesquisa global" value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      <input className="input pl-8" placeholder="Pesquisar clientes, produtos, pessoas…" aria-label="Pesquisa global" value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 150)} />
       {open && q.length >= 2 && (
         <div className="card absolute z-40 mt-1 w-full p-1 shadow-lg">
           {!data?.results.length ? <p className="p-2 text-sm muted">Sem resultados.</p> : data.results.map((r) => (

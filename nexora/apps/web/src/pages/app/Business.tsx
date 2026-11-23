@@ -41,6 +41,7 @@ export function Dashboard() {
         {data.customers && <Stat label="Clientes" value={fmtNum(data.customers.total)} />}
         {data.employees && <Stat label="Funcionários ativos" value={fmtNum(data.employees.active)} />}
       </div>
+      <Onboarding />
       {!Object.keys(data).length && <Alert>O seu perfil ainda não tem acesso a indicadores de negócio. Peça ao administrador as permissões necessárias.</Alert>}
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         {data.salesByMonth && (
@@ -67,6 +68,29 @@ export function Dashboard() {
         )}
       </div>
     </>
+  );
+}
+
+function Onboarding() {
+  const { data } = useApi<any>(["onboarding"], "/api/company/onboarding");
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem("nx-onboarding-hidden") === "1"; } catch { return false; } });
+  if (!data || hidden || data.completed === data.total) return null;
+  return (
+    <div className="card mt-6 p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div><h2 className="font-semibold">Primeiros passos</h2><p className="text-sm muted">{data.completed} de {data.total} concluídos</p></div>
+        <button className="text-xs muted underline" onClick={() => { setHidden(true); try { localStorage.setItem("nx-onboarding-hidden", "1"); } catch {} }}>Ocultar</button>
+      </div>
+      <div className="mt-2 h-1.5 rounded bg-slate-200 dark:bg-slate-800"><div className="h-1.5 rounded bg-brand-500" style={{ width: `${(data.completed / data.total) * 100}%` }} /></div>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {data.steps.map((s: any) => (
+          <li key={s.key}><a href={s.link} className="flex items-center gap-2 rounded-lg p-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
+            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-xs ${s.done ? "bg-emerald-500 text-white" : "border border-slate-300 dark:border-slate-600"}`}>{s.done ? "✓" : ""}</span>
+            <span className={s.done ? "muted line-through" : ""}>{s.label}</span>
+          </a></li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

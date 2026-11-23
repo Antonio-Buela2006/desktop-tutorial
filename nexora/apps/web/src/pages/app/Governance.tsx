@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, ShieldAlert, Download, RotateCcw, LogOut } from "lucide-react";
-import { api, del, fmtDateTime, post, useAction, useApi } from "../../lib/api";
+import { api, del, fmtDateTime, post, put, useAction, useApi } from "../../lib/api";
 import { Alert, Badge, Button, Card, DataTable, ErrorState, ErrorText, Field, Input, Loading, PageHeader, Select, useToast } from "../../components/ui";
 import { can } from "../../layouts/AppLayout";
 import { useList, useMeCtx } from "./Business";
@@ -84,7 +84,8 @@ export function Notifications() {
   const tone: Record<string, "red" | "amber" | "blue"> = { critical: "red", warning: "amber", info: "blue" };
   return (
     <>
-      <PageHeader title="Notificações" subtitle="Alertas do sistema e da IA. As preferências e canais são configurados pelos administradores." actions={!!data?.unread && <Button variant="secondary" onClick={() => read.mutate(undefined)}>Marcar todas como lidas</Button>} />
+      <PageHeader title="Notificações" subtitle="Alertas do sistema e da IA." actions={!!data?.unread && <Button variant="secondary" onClick={() => read.mutate(undefined)}>Marcar todas como lidas</Button>} />
+      <NotificationPrefs />
       {isLoading ? <Loading /> : !data.items.length ? <Card><p className="text-sm muted">Sem notificações.</p></Card> : (
         <ul className="space-y-2">{data.items.map((n: any) => (
           <li key={n.id} className={`card p-3 ${n.readAt ? "opacity-70" : ""}`}>
@@ -95,6 +96,32 @@ export function Notifications() {
         ))}</ul>
       )}
     </>
+  );
+}
+
+function NotificationPrefs() {
+  const { data } = useApi<any>(["notif-prefs"], "/api/notifications/preferences");
+  const [f, setF] = useState<any>(null);
+  const save = useAction((v: any) => put("/api/notifications/preferences", v), [["notif-prefs"]]);
+  if (data && !f) setF(data.preferences);
+  if (!data || !f) return null;
+  const quiet = f.quietStartHour !== null;
+  return (
+    <details className="card mb-4 p-4">
+      <summary className="cursor-pointer text-sm font-semibold">As minhas preferências de notificação</summary>
+      <div className="mt-3 space-y-3 text-sm">
+        {save.error && <ErrorText error={save.error} />}
+        {save.isSuccess && <Alert tone="success">Preferências guardadas.</Alert>}
+        <label className="flex items-center gap-2"><input type="checkbox" checked={f.emailEnabled} onChange={(e) => setF({ ...f, emailEnabled: e.target.checked })} />Receber também por e-mail</label>
+        <fieldset><legend className="label">Receber estes alertas</legend>
+          {data.mutableTypes.map((t: any) => <label key={t.type} className="flex items-center gap-2"><input type="checkbox" checked={!f.mutedTypes.includes(t.type)} onChange={(e) => setF({ ...f, mutedTypes: e.target.checked ? f.mutedTypes.filter((x: string) => x !== t.type) : [...f.mutedTypes, t.type] })} />{t.label}</label>)}
+        </fieldset>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={quiet} onChange={(e) => setF({ ...f, quietStartHour: e.target.checked ? 22 : null, quietEndHour: e.target.checked ? 7 : null })} />Horário de silêncio para e-mails (exceto alertas críticos)</label>
+        {quiet && <div className="flex items-center gap-2">das <Input type="number" min={0} max={23} className="w-20" value={f.quietStartHour} onChange={(e) => setF({ ...f, quietStartHour: +e.target.value })} aria-label="Início" /> às <Input type="number" min={0} max={23} className="w-20" value={f.quietEndHour} onChange={(e) => setF({ ...f, quietEndHour: +e.target.value })} aria-label="Fim" /> horas</div>}
+        <p className="text-xs muted">Notificações de segurança da conta e de faturação são sempre enviadas.</p>
+        <Button size="sm" loading={save.isPending} onClick={() => save.mutate(f)}>Guardar preferências</Button>
+      </div>
+    </details>
   );
 }
 

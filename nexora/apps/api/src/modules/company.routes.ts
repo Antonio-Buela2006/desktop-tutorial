@@ -46,6 +46,7 @@ const employeeBody = z.object({
   jobTitle: z.string().trim().max(120).optional(),
   department: z.string().trim().max(120).optional(),
   hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  branchId: z.string().uuid().nullable().optional(),
   salary: z.number().min(0).max(1e12).optional(),
 });
 
@@ -256,10 +257,11 @@ export async function companyRoutes(app: FastifyInstance) {
   app.get("/api/company/employees", async (req) => {
     const ctx = requireCtx(req);
     authorize(ctx, "employees.view");
-    const q = parse(pageQuery.extend({ status: z.enum(["active", "exited", "all"]).default("active") }), req.query);
+    const q = parse(pageQuery.extend({ status: z.enum(["active", "exited", "all"]).default("active"), branchId: z.string().uuid().optional() }), req.query);
     const where = and(
       eq(employees.tenantId, ctx.tenant.id),
       isNull(employees.deletedAt),
+      q.branchId ? eq(employees.branchId, q.branchId) : undefined,
       q.status === "all" ? undefined : eq(employees.status, q.status),
       q.q ? or(ilike(employees.fullName, `%${q.q}%`), ilike(employees.department, `%${q.q}%`), ilike(employees.jobTitle, `%${q.q}%`)) : undefined,
     );
@@ -280,6 +282,7 @@ export async function companyRoutes(app: FastifyInstance) {
     authorize(ctx, "employees.create");
     const body = parse(employeeBody, req.body);
     if (body.salary !== undefined && !can(ctx, "employees.view_salary")) throw forbidden("Sem permissão para registar dados salariais.");
+    await assertBranch(ctx, body.branchId);
     await assertCapacity(ctx.tenant.id, "employees");
     const [e] = await db.insert(employees).values({ ...body, tenantId: ctx.tenant.id }).returning();
     await audit({ ...auditBase(ctx), action: "employee.created", entityType: "employee", entityId: e.id, summary: `Funcionário ${e.fullName} registado.` });
@@ -292,6 +295,7 @@ export async function companyRoutes(app: FastifyInstance) {
     const { id } = parse(uuidParam, req.params);
     const body = parse(employeeBody.partial(), req.body);
     if (body.salary !== undefined && !can(ctx, "employees.view_salary")) throw forbidden("Sem permissão para alterar dados salariais.");
+    await assertBranch(ctx, body.branchId);
     const [e] = await db.update(employees).set(body).where(and(eq(employees.id, id), eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt))).returning();
     if (!e) throw notFound();
     await audit({ ...auditBase(ctx), action: "employee.updated", entityType: "employee", entityId: id, summary: `Funcionário ${e.fullName} atualizado.`, metadata: { fields: Object.keys(body) } });
@@ -423,6 +427,14 @@ export async function companyRoutes(app: FastifyInstance) {
   });
 
   void dsql;
+}
+
+/** A unidade indicada tem de pertencer ao tenant da sessão. */
+async function assertBranch(ctx: Ctx, branchId: string | null | undefined) {
+  if (!branchId) return;
+  const { branches } = await import("../db/schema.js");
+  const [b] = await db.select({ id: branches.id }).from(branches).where(and(eq(branches.id, branchId), eq(branches.tenantId, ctx.tenant.id)));
+  if (!b) throw badRequest("Unidade inválida.");
 }
 
 export async function disableMembership(ctx: Ctx, membershipId: string, summary: string) {

@@ -10,6 +10,7 @@ import { badRequest, notFound } from "../core/errors.js";
 import { parse, uuidParam } from "../core/http.js";
 import { deleteObject, getObject, MAX_FILE_BYTES, putObject, sanitizeFileName, storageKey, validateFile } from "../core/storage.js";
 import { createHash, randomUUID } from "node:crypto";
+import { scanBuffer } from "../core/antivirus.js";
 
 const ENTITIES = {
   employee: { table: employees, view: "employees.view", edit: "employees.edit" },
@@ -48,6 +49,7 @@ export async function fileRoutes(app: FastifyInstance) {
     const data: Buffer = await part.toBuffer();
     const category = typeof part.fields?.category?.value === "string" ? String(part.fields.category.value).slice(0, 60) : null;
     validateFile(part.mimetype, data);
+    await scanBuffer(data);
     const id = randomUUID();
     const key = storageKey(ctx.tenant.id, id);
     await putObject(key, data, part.mimetype);

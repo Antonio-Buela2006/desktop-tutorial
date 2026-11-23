@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db, type DbOrTx } from "../db/client.js";
-import { memberships, notifications, users } from "../db/schema.js";
+import { memberships, notificationPreferences, notifications, users } from "../db/schema.js";
 import nodemailer from "nodemailer";
 import { config } from "../config.js";
 
@@ -28,14 +28,43 @@ export async function sendMail(to: string, subject: string, body: string) {
 
 type NotifyInput = { type: string; title: string; body?: string; severity?: "info" | "warning" | "critical"; link?: string; dedupeKey?: string };
 
-export async function notifyMembership(tenantId: string, membershipId: string, n: NotifyInput, tx: DbOrTx = db) {
-  await tx
-    .insert(notifications)
-    .values({ tenantId, membershipId, type: n.type, title: n.title, body: n.body ?? "", severity: n.severity ?? "info", link: n.link, dedupeKey: n.dedupeKey ?? null })
-    .onConflictDoNothing();
+/** Tipos que nunca podem ser silenciados (segurança da conta e estado da subscrição). */
+export const UNMUTABLE_PREFIXES = ["security.", "billing.", "trial.", "ownership."];
+const unmutable = (type: string) => UNMUTABLE_PREFIXES.some((p) => type.startsWith(p));
+
+export type Prefs = typeof notificationPreferences.$inferSelect;
+
+/** Está dentro do horário de silêncio? (suporta intervalos que atravessam a meia-noite). Hora em UTC+1 (Angola). */
+export function inQuietHours(p: Pick<Prefs, "quietStartHour" | "quietEndHour"> | undefined, now = new Date()) {
+  if (!p || p.quietStartHour === null || p.quietEndHour === null || p.quietStartHour === p.quietEndHour) return false;
+  const h = (now.getUTCHours() + 1) % 24;
+  return p.quietStartHour < p.quietEndHour ? h >= p.quietStartHour && h < p.quietEndHour : h >= p.quietStartHour || h < p.quietEndHour;
 }
 
-/** Notifica todos os membros ativos com uma permissão (respeita RBAC e módulos). */
+async function prefsOf(membershipId: string, tx: DbOrTx = db) {
+  const [p] = await tx.select().from(notificationPreferences).where(eq(notificationPreferences.membershipId, membershipId));
+  return p;
+}
+
+/** Cria a notificação no sistema, salvo se o utilizador silenciou este tipo. Devolve se foi criada. */
+export async function notifyMembership(tenantId: string, membershipId: string, n: NotifyInput, tx: DbOrTx = db) {
+  if (!unmutable(n.type)) {
+    const p = await prefsOf(membershipId, tx);
+    if (p?.mutedTypes.some((m) => n.type === m || n.type.startsWith(m + "."))) return false;
+  }
+  const r = await tx
+    .insert(notifications)
+    .values({ tenantId, membershipId, type: n.type, title: n.title, body: n.body ?? "", severity: n.severity ?? "info", link: n.link, dedupeKey: n.dedupeKey ?? null })
+    .onConflictDoNothing()
+    .returning({ id: notifications.id });
+  return r.length > 0;
+}
+
+/**
+ * Notifica todos os membros ativos com uma permissão (respeita RBAC e módulos).
+ * E-mail: só para notificações novas (sem duplicados), se o utilizador o tiver ativo e fora do horário
+ * de silêncio — exceto severidade crítica.
+ */
 export async function notifyByPermission(tenantId: string, perm: string, n: NotifyInput, opts: { email?: boolean } = {}) {
   const rows = await db
     .select({ m: memberships, email: users.email })
@@ -47,9 +76,14 @@ export async function notifyByPermission(tenantId: string, perm: string, n: Noti
   for (const r of rows) {
     const perms = await effectivePermissions(r.m, modules);
     if (!perms.has(perm)) continue;
-    await notifyMembership(tenantId, r.m.id, n);
-    if (opts.email) await sendMail(r.email, `[Nexora] ${n.title}`, n.body ?? "");
+    const created = await notifyMembership(tenantId, r.m.id, n);
+    if (!created) continue;
     sent++;
+    if (opts.email) {
+      const p = await prefsOf(r.m.id);
+      const emailOn = p?.emailEnabled ?? true;
+      if ((emailOn || unmutable(n.type)) && (n.severity === "critical" || !inQuietHours(p))) await sendMail(r.email, `[Nexora] ${n.title}`, n.body ?? "");
+    }
   }
   return sent;
 }

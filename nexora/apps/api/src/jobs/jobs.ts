@@ -25,6 +25,8 @@ import { computeAccessState, daysOverdue, DAY } from "../core/subscription.js";
 import { nextInvoiceNumber } from "../core/tenantService.js";
 import { getSetting } from "../modules/billing.routes.js";
 import { purgeDeletedFiles } from "../modules/files.routes.js";
+import { DEFAULT_ALERTS } from "../modules/companyExtras.routes.js";
+import { monthlySales } from "../modules/business.routes.js";
 
 /** Emite faturas de renovação 3 dias antes do fim do período (se não houver cancelamento). */
 export async function issueRenewals(now = new Date()) {
@@ -71,24 +73,45 @@ export async function reconcileSubscriptions(now = new Date()) {
   }
 }
 
-/** Alertas inteligentes: stock baixo, despesas anormais, quebra de vendas. Sem excesso (dedupe diário). */
+/** Alertas inteligentes (configuráveis por empresa): stock baixo, despesas anormais, quebra de vendas. Sem excesso (dedupe diário). */
 export async function runAlerts(now = new Date()) {
   const day = now.toISOString().slice(0, 10);
   const list = await db.select({ t: tenants, p: aiPolicies }).from(tenants).innerJoin(aiPolicies, eq(aiPolicies.tenantId, tenants.id));
   let sent = 0;
   for (const { t, p } of list) {
     if (!p.enabled || !p.alertsEnabled) continue;
-    const low = await db.select({ name: products.name, stockQty: products.stockQty }).from(products)
-      .where(and(eq(products.tenantId, t.id), isNull(products.deletedAt), lte(products.stockQty, products.reorderLevel)));
-    if (low.length)
-      sent += await notifyByPermission(t.id, "inventory.view", { type: "ai.alert.low_stock", severity: "warning", title: `${low.length} produto(s) com stock baixo`, body: low.slice(0, 5).map((l) => `${l.name} (${l.stockQty})`).join(", "), link: "/app/products?lowStock=1", dedupeKey: `low-stock:${day}` });
-    // Despesa anormal: maior que 3x a média das despesas dos últimos 90 dias
-    const [avg] = await db.select({ avg: dsql<number>`avg(${financeTransactions.amount})` }).from(financeTransactions)
-      .where(and(eq(financeTransactions.tenantId, t.id), eq(financeTransactions.kind, "expense"), isNull(financeTransactions.deletedAt), dsql`${financeTransactions.occurredOn} > now() - interval '90 days'`));
-    if (avg?.avg) {
-      const big = await db.select().from(financeTransactions).where(and(eq(financeTransactions.tenantId, t.id), eq(financeTransactions.kind, "expense"), isNull(financeTransactions.deletedAt), dsql`${financeTransactions.createdAt} > now() - interval '1 day'`, dsql`${financeTransactions.amount} > ${Number(avg.avg) * 3}`));
-      for (const b of big)
-        sent += await notifyByPermission(t.id, "finance.view", { type: "ai.alert.expense", severity: "warning", title: "Despesa invulgarmente elevada", body: `${b.category}: ${b.amount} (média recente ${Math.round(Number(avg.avg))}).`, link: "/app/finance", dedupeKey: `expense:${b.id}` });
+    const cfg = { ...DEFAULT_ALERTS, ...(t.settings.alerts ?? {}) };
+    const email = { email: cfg.emailCritical };
+    if (cfg.lowStock) {
+      const low = await db.select({ name: products.name, stockQty: products.stockQty }).from(products)
+        .where(and(eq(products.tenantId, t.id), isNull(products.deletedAt), lte(products.stockQty, products.reorderLevel)));
+      if (low.length) {
+        const outOfStock = low.some((l) => l.stockQty <= 0);
+        sent += await notifyByPermission(t.id, "inventory.view", { type: "ai.alert.low_stock", severity: outOfStock ? "critical" : "warning", title: `${low.length} produto(s) com stock baixo${outOfStock ? " (há ruturas)" : ""}`, body: low.slice(0, 5).map((l) => `${l.name} (${l.stockQty})`).join(", "), link: "/app/products?lowStock=1", dedupeKey: `low-stock:${day}` }, outOfStock ? email : {});
+      }
+    }
+    if (cfg.abnormalExpense) {
+      const [avg] = await db.select({ avg: dsql<number>`avg(${financeTransactions.amount})` }).from(financeTransactions)
+        .where(and(eq(financeTransactions.tenantId, t.id), eq(financeTransactions.kind, "expense"), isNull(financeTransactions.deletedAt), dsql`${financeTransactions.occurredOn} > now() - interval '90 days'`));
+      if (avg?.avg) {
+        const limit = Number(avg.avg) * cfg.abnormalExpenseMultiplier;
+        const big = await db.select().from(financeTransactions).where(and(eq(financeTransactions.tenantId, t.id), eq(financeTransactions.kind, "expense"), isNull(financeTransactions.deletedAt), dsql`${financeTransactions.createdAt} > now() - interval '1 day'`, dsql`${financeTransactions.amount} > ${limit}`));
+        for (const b of big)
+          sent += await notifyByPermission(t.id, "finance.view", { type: "ai.alert.expense", severity: "critical", title: "Despesa invulgarmente elevada", body: `${b.category}: ${b.amount} (mais de ${cfg.abnormalExpenseMultiplier}× a média recente de ${Math.round(Number(avg.avg))}).`, link: "/app/finance", dedupeKey: `expense:${b.id}` }, email);
+      }
+    }
+    if (cfg.salesDrop && now.getUTCDate() >= 10) {
+      // Projeção do mês corrente vs média dos 3 meses anteriores
+      const hist = await monthlySales(t.id, 4);
+      const prev = hist.slice(0, 3).map((h) => h.total).filter((v) => v > 0);
+      if (prev.length === 3) {
+        const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+        const projected = (hist[3].total / now.getUTCDate()) * daysInMonth;
+        const base = prev.reduce((a, b) => a + b, 0) / 3;
+        const drop = Math.round(((base - projected) / base) * 100);
+        if (drop >= cfg.salesDropPct)
+          sent += await notifyByPermission(t.id, "sales.view", { type: "ai.alert.sales_drop", severity: "warning", title: `Vendas a cair cerca de ${drop}% este mês`, body: `Projeção ${Math.round(projected)} vs média de ${Math.round(base)} nos 3 meses anteriores. Estimativa, não certeza.`, link: "/app/sales", dedupeKey: `sales-drop:${hist[3].month}` });
+      }
     }
   }
   return sent;

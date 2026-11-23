@@ -20,6 +20,7 @@ import { publicRoutes } from "./modules/public.routes.js";
 import { aiRoutes } from "./ai/ai.routes.js";
 import multipart from "@fastify/multipart";
 import { fileRoutes } from "./modules/files.routes.js";
+import { companyExtrasRoutes } from "./modules/companyExtras.routes.js";
 import { registerObservability } from "./core/observability.js";
 
 export async function buildApp() {
@@ -73,6 +74,7 @@ export async function buildApp() {
   await app.register(billingRoutes);
   await app.register(aiRoutes);
   await app.register(fileRoutes);
+  await app.register(companyExtrasRoutes);
   await app.register(adminRoutes);
   return app;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, LogOut as ExitIcon, UserX, UserCheck, KeyRound, Paperclip } from "lucide-react";
+import { Plus, Pencil, Trash2, LogOut as ExitIcon, UserX, UserCheck, KeyRound, Paperclip, EyeOff } from "lucide-react";
 import { DocumentsModal } from "../../components/Documents";
 import { del, fmtDate, fmtDateTime, fmtMoney, post, put, useAction, useApi } from "../../lib/api";
 import { Alert, Badge, Button, Card, DataTable, ErrorState, ErrorText, Field, Input, Loading, Modal, PageHeader, Select, useConfirm, useToast } from "../../components/ui";
@@ -30,7 +30,10 @@ function Capacity({ limits, usage }: { limits: any; usage: any }) {
 export function Employees() {
   const me = useMeCtx();
   const [status, setStatus] = useState("active");
-  const list = useList("employees", "/api/company/employees", { status });
+  const [branch, setBranch] = useState("");
+  const list = useList("employees", "/api/company/employees", { status, ...(branch ? { branchId: branch } : {}) });
+  const branches = useApi<any[]>(["branches"], "/api/company/branches");
+  const anonymize = useAction((id: string) => post(`/api/company/employees/${id}/anonymize`, { confirm: true }), [["employees"]]);
   const [edit, setEdit] = useState<any | null>(null);
   const [offboard, setOffboard] = useState<any | null>(null);
   const [docs, setDocs] = useState<any | null>(null);
@@ -44,11 +47,15 @@ export function Employees() {
       <PageHeader title="Funcionários" subtitle="Cadastro de pessoas da empresa — independente das contas de acesso." actions={can(me, "employees.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> Registar funcionário</Button>} />
       <Capacity limits={list.data?.limits} usage={list.data?.usage} />
       <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
-        toolbar={<Select aria-label="Estado" value={status} onChange={(e) => setStatus(e.target.value)} className="w-40"><option value="active">Ativos</option><option value="exited">Saídas</option><option value="all">Todos</option></Select>}
+        toolbar={<>
+          {!!branches.data?.length && <Select aria-label="Unidade" value={branch} onChange={(e) => setBranch(e.target.value)} className="w-44"><option value="">Todas as unidades</option>{branches.data.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>}
+          <Select aria-label="Estado" value={status} onChange={(e) => setStatus(e.target.value)} className="w-40"><option value="active">Ativos</option><option value="exited">Saídas</option><option value="all">Todos</option></Select>
+        </>}
         columns={[
           { key: "fullName", header: "Nome", render: (r: any) => <span className="font-medium">{r.fullName}</span> },
           { key: "jobTitle", header: "Função", render: (r: any) => r.jobTitle ?? "—" },
           { key: "department", header: "Departamento", render: (r: any) => r.department ?? "—" },
+          ...(branches.data?.length ? [{ key: "branch", header: "Unidade", render: (r: any) => branches.data!.find((b) => b.id === r.branchId)?.name ?? "—" }] : []),
           ...(salary ? [{ key: "salary", header: "Salário", render: (r: any) => fmtMoney(r.salary, me.tenant.currency) }] : []),
           { key: "account", header: "Conta", render: (r: any) => (r.account ? <Badge tone={r.account.status === "active" ? "green" : "gray"}>{r.account.status === "active" ? "Com acesso" : "Desativada"}</Badge> : <Badge>Sem conta</Badge>) },
           { key: "status", header: "Estado", render: (r: any) => (r.status === "active" ? <Badge tone="green">Ativo</Badge> : <Badge>Saída {fmtDate(r.exitDate)}</Badge>) },
@@ -58,12 +65,14 @@ export function Employees() {
                 <Button size="sm" variant="ghost" onClick={() => setDocs(r)} aria-label={`Documentos de ${r.fullName}`}><Paperclip className="h-4 w-4" /></Button>
                 {can(me, "employees.edit") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setEdit(r)} aria-label="Editar"><Pencil className="h-4 w-4" /></Button>}
                 {r.status === "active" && can(me, "employees.offboard") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setOffboard(r)} aria-label="Registar saída"><ExitIcon className="h-4 w-4" /></Button>}
+                {r.status === "exited" && !r.anonymizedAt && can(me, "employees.edit") && can(me, "employees.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label="Anonimizar dados pessoais" title="Anonimizar dados pessoais" onClick={async () => { if (await confirm("Anonimizar dados pessoais", <>O nome e o e-mail de <strong>{r.fullName}</strong> são substituídos de forma irreversível e os documentos vão para eliminação. Datas e função mantêm-se no histórico.</>)) { await anonymize.mutateAsync(r.id); toast("Dados pessoais anonimizados."); } }}><EyeOff className="h-4 w-4" /></Button>}
                 {can(me, "employees.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label="Eliminar" onClick={async () => { if (await confirm("Eliminar registo", `O registo de ${r.fullName} vai para a lixeira.`)) { await remove.mutateAsync(r.id); toast("Registo movido para a lixeira."); } }}><Trash2 className="h-4 w-4" /></Button>}
               </div>
             ),
           },
         ]} />
-      <EmployeeForm value={edit} salary={salary} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); toast("Funcionário guardado."); }} />
+      {anonymize.error && <div className="mt-3"><ErrorText error={anonymize.error} /></div>}
+      <EmployeeForm value={edit} salary={salary} branches={branches.data ?? []} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); toast("Funcionário guardado."); }} />
       {docs && <DocumentsModal entityType="employee" entity={{ id: docs.id, name: docs.fullName }} canEdit={can(me, "employees.edit") && w} onClose={() => setDocs(null)} />}
       <OffboardForm value={offboard} onClose={() => setOffboard(null)} onSaved={(r) => { setOffboard(null); toast(r.accountDisabled ? "Saída registada; acesso revogado e vaga libertada." : "Saída registada."); }} />
       {dialog}{toastEl}
@@ -71,7 +80,7 @@ export function Employees() {
   );
 }
 
-function EmployeeForm({ value, salary, onClose, onSaved }: { value: any | null; salary: boolean; onClose: () => void; onSaved: () => void }) {
+function EmployeeForm({ value, salary, branches, onClose, onSaved }: { value: any | null; salary: boolean; branches: any[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState<any>({});
   const save = useAction((v: any) => (value?.id ? put(`/api/company/employees/${value.id}`, v) : post("/api/company/employees", v)), [["employees"]]);
   const c = { fullName: "", email: "", jobTitle: "", department: "", hireDate: "", salary: "", ...value, ...f };
@@ -80,7 +89,7 @@ function EmployeeForm({ value, salary, onClose, onSaved }: { value: any | null; 
     <Modal open={value !== null} onClose={() => { setF({}); onClose(); }} title={value?.id ? "Editar funcionário" : "Registar funcionário"}>
       <form className="space-y-3" onSubmit={async (e) => {
         e.preventDefault();
-        const body: any = { fullName: c.fullName, email: c.email || "", jobTitle: c.jobTitle || undefined, department: c.department || undefined, hireDate: c.hireDate || undefined };
+        const body: any = { fullName: c.fullName, email: c.email || "", jobTitle: c.jobTitle || undefined, department: c.department || undefined, hireDate: c.hireDate || undefined, branchId: c.branchId || null };
         if (salary && c.salary !== "" && c.salary !== null) body.salary = Number(c.salary);
         await save.mutateAsync(body); setF({}); onSaved();
       }}>
@@ -91,6 +100,7 @@ function EmployeeForm({ value, salary, onClose, onSaved }: { value: any | null; 
           <Field label="Data de admissão"><Input type="date" value={c.hireDate ?? ""} onChange={(e) => set("hireDate", e.target.value)} /></Field>
           <Field label="Função"><Input value={c.jobTitle ?? ""} onChange={(e) => set("jobTitle", e.target.value)} /></Field>
           <Field label="Departamento"><Input value={c.department ?? ""} onChange={(e) => set("department", e.target.value)} /></Field>
+          {branches.length > 0 && <Field label="Unidade"><Select value={c.branchId ?? ""} onChange={(e) => set("branchId", e.target.value)}><option value="">—</option>{branches.filter((b) => b.isActive).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select></Field>}
           {salary && <Field label="Salário (sensível)"><Input type="number" min={0} value={c.salary ?? ""} onChange={(e) => set("salary", e.target.value)} /></Field>}
         </div>
         <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Guardar</Button></div>
@@ -352,6 +362,9 @@ export function Settings() {
           </form>
         </Card>
         <div className="space-y-4">
+          {manage && <AlertsCard />}
+          <BranchesCard manage={manage} />
+          {me.membership.level === "primary_admin" && <LegalHoldCard enabled={!!st.legalHold} />}
           {pending.data && (
             <Card title="Transferência de administração pendente">
               <p className="text-sm">Foi-lhe proposta a administração principal desta empresa.</p>
@@ -378,7 +391,7 @@ export function Settings() {
               <div className="space-y-2">
                 <Input type="email" placeholder="E-mail do técnico Nexora" value={grant.platformAdminEmail} onChange={(e) => setGrant({ ...grant, platformAdminEmail: e.target.value })} />
                 <Input placeholder="Motivo (mín. 10 caracteres)" value={grant.reason} onChange={(e) => setGrant({ ...grant, reason: e.target.value })} />
-                <div className="flex flex-wrap gap-3 text-sm">{["customers", "products", "sales_orders", "finance_transactions", "employees"].map((s) => <label key={s} className="flex items-center gap-1"><input type="checkbox" checked={grant.scope.includes(s)} onChange={(e) => setGrant({ ...grant, scope: e.target.checked ? [...grant.scope, s] : grant.scope.filter((x) => x !== s) })} />{s}</label>)}</div>
+                <div className="flex flex-wrap gap-3 text-sm">{([["customers", "Clientes"], ["products", "Produtos"], ["sales_orders", "Vendas"], ["finance_transactions", "Finanças"], ["employees", "Funcionários (sem salários)"]] as const).map(([s, l]) => <label key={s} className="flex items-center gap-1"><input type="checkbox" checked={grant.scope.includes(s)} onChange={(e) => setGrant({ ...grant, scope: e.target.checked ? [...grant.scope, s] : grant.scope.filter((x) => x !== s) })} />{l}</label>)}</div>
                 <div className="flex items-center gap-2 text-sm">Duração <Input type="number" min={1} max={72} className="w-20" value={grant.hours} onChange={(e) => setGrant({ ...grant, hours: +e.target.value })} /> horas</div>
                 <Button onClick={async () => { await createGrant.mutateAsync(grant); toast("Acesso temporário autorizado."); }}>Autorizar</Button>
               </div>
@@ -392,5 +405,67 @@ export function Settings() {
       </div>
       {toastEl}
     </>
+  );
+}
+
+function AlertsCard() {
+  const { data } = useApi<any>(["alerts-cfg"], "/api/company/alerts");
+  const [f, setF] = useState<any>(null);
+  const save = useAction((v: any) => put("/api/company/alerts", v), [["alerts-cfg"]]);
+  useEffect(() => { if (data && !f) setF(data); }, [data, f]);
+  if (!f) return null;
+  return (
+    <Card title="Alertas inteligentes">
+      <div className="space-y-2 text-sm">
+        {save.error && <ErrorText error={save.error} />}
+        {save.isSuccess && <Alert tone="success">Configuração guardada.</Alert>}
+        <label className="flex items-center gap-2"><input type="checkbox" checked={f.lowStock} onChange={(e) => setF({ ...f, lowStock: e.target.checked })} />Stock no nível de reposição ou em rutura</label>
+        <label className="flex flex-wrap items-center gap-2"><input type="checkbox" checked={f.abnormalExpense} onChange={(e) => setF({ ...f, abnormalExpense: e.target.checked })} />Despesa acima de <Input type="number" min={1.5} max={20} step={0.5} className="w-20" value={f.abnormalExpenseMultiplier} onChange={(e) => setF({ ...f, abnormalExpenseMultiplier: +e.target.value })} aria-label="Multiplicador" /> × a média recente</label>
+        <label className="flex flex-wrap items-center gap-2"><input type="checkbox" checked={f.salesDrop} onChange={(e) => setF({ ...f, salesDrop: e.target.checked })} />Queda de vendas projetada de pelo menos <Input type="number" min={5} max={90} className="w-20" value={f.salesDropPct} onChange={(e) => setF({ ...f, salesDropPct: +e.target.value })} aria-label="Percentagem" /> %</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={f.emailCritical} onChange={(e) => setF({ ...f, emailCritical: e.target.checked })} />Enviar alertas críticos também por e-mail</label>
+        <p className="text-xs muted">Os destinatários são as pessoas com permissão sobre a área. Cada alerta é enviado no máximo uma vez por dia, e cada pessoa pode silenciá-los nas suas notificações.</p>
+        <Button size="sm" loading={save.isPending} onClick={() => save.mutate(f)}>Guardar alertas</Button>
+      </div>
+    </Card>
+  );
+}
+
+function BranchesCard({ manage }: { manage: boolean }) {
+  const { data } = useApi<any[]>(["branches"], "/api/company/branches");
+  const [f, setF] = useState({ code: "", name: "", address: "" });
+  const create = useAction((v: any) => post("/api/company/branches", v), [["branches"]]);
+  const toggle = useAction((b: any) => put(`/api/company/branches/${b.id}`, { isActive: !b.isActive }), [["branches"]]);
+  return (
+    <Card title="Unidades e filiais">
+      <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+        {data?.map((b) => (
+          <li key={b.id} className="flex items-center justify-between gap-2 py-2">
+            <span><strong>{b.code}</strong> · {b.name} <span className="muted">({b.employees} func.)</span> {!b.isActive && <Badge>Inativa</Badge>}</span>
+            {manage && <Button size="sm" variant="ghost" onClick={() => toggle.mutate(b)}>{b.isActive ? "Desativar" : "Ativar"}</Button>}
+          </li>
+        ))}
+        {!data?.length && <li className="py-2 muted">Sem unidades registadas.</li>}
+      </ul>
+      {manage && (
+        <form className="mt-3 grid gap-2 sm:grid-cols-[90px_1fr_auto]" onSubmit={async (e) => { e.preventDefault(); await create.mutateAsync({ ...f, address: f.address || undefined }); setF({ code: "", name: "", address: "" }); }}>
+          <Input required placeholder="Código" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} aria-label="Código da unidade" />
+          <Input required placeholder="Nome (ex.: Luanda — Sede)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} aria-label="Nome da unidade" />
+          <Button loading={create.isPending}>Adicionar</Button>
+          {create.error && <div className="sm:col-span-3"><ErrorText error={create.error} /></div>}
+        </form>
+      )}
+    </Card>
+  );
+}
+
+function LegalHoldCard({ enabled }: { enabled: boolean }) {
+  const [reason, setReason] = useState("");
+  const save = useAction((v: any) => put("/api/company/legal-hold", v), [["settings"], ["me"]]);
+  return (
+    <Card title="Retenção legal (legal hold)" actions={enabled ? <Badge tone="red">Ativa</Badge> : <Badge>Inativa</Badge>}>
+      <p className="mb-2 text-sm muted">Enquanto estiver ativa, nada é eliminado definitivamente: a lixeira não é purgada e não é possível anonimizar dados. Use-a em litígios, auditorias ou investigações.</p>
+      {save.error && <ErrorText error={save.error} />}
+      <div className="flex flex-wrap gap-2"><Input placeholder="Motivo (fica auditado)" value={reason} onChange={(e) => setReason(e.target.value)} /><Button variant={enabled ? "secondary" : "danger"} disabled={reason.trim().length < 5} loading={save.isPending} onClick={async () => { await save.mutateAsync({ enabled: !enabled, reason }); setReason(""); }}>{enabled ? "Desativar" : "Ativar"}</Button></div>
+    </Card>
   );
 }

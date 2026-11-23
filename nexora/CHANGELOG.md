@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-11-23
+- Preferências de notificação por utilizador: e-mail, silenciar tipos de alerta e horário de silêncio. Segurança e faturação não podem ser silenciadas; os e-mails já não se repetem.
+- Alertas inteligentes configuráveis: stock/rutura, despesas anormais com multiplicador, queda de vendas projetada e e-mail para alertas críticos.
+- Unidades/filiais com associação de funcionários.
+- Retenção legal (*legal hold*) e anonimização de dados pessoais de ex-funcionários.
+- Antivírus ClamAV nos uploads, com falha fechada.
+- Guia de primeiros passos no dashboard.
+- Correção global de estilos (camada `components` do Tailwind).
+- 64 testes.
+
 ## 0.2.0 — 2026-11-23
 - Documentos privados de funcionários e clientes, com armazenamento local ou S3, validação do conteúdo, auditoria e purga após o prazo da lixeira.
 - Exportação em XLSX e PDF; fatura em PDF.

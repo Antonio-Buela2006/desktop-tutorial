@@ -106,7 +106,17 @@ export const platformSessions = pgTable("platform_sessions", {
 /* Identidade e tenants                                                */
 /* ------------------------------------------------------------------ */
 
+export type AlertSettings = {
+  lowStock: boolean;
+  abnormalExpense: boolean;
+  abnormalExpenseMultiplier: number; // despesa > N × média dos últimos 90 dias
+  salesDrop: boolean;
+  salesDropPct: number; // queda do mês vs média dos 3 anteriores (projeção)
+  emailCritical: boolean; // enviar também por e-mail os alertas críticos
+};
+
 export type TenantSettings = {
+  alerts?: AlertSettings;
   require2fa: "off" | "admins" | "all";
   idleTimeoutMinutes: number;
   maxSessionsPerUser: number;
@@ -523,6 +533,31 @@ export const aiActions = pgTable("ai_actions", {
 /* Módulos de negócio (nomes provisórios — ver docs/product/pending.md) */
 /* ------------------------------------------------------------------ */
 
+export const branches = pgTable(
+  "branches",
+  {
+    id: id(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    address: text("address"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("branches_tenant_code").on(t.tenantId, t.code)],
+);
+
+/** Preferências de notificação por utilizador (alertas de segurança e faturação críticos não podem ser silenciados). */
+export const notificationPreferences = pgTable("notification_preferences", {
+  membershipId: uuid("membership_id").primaryKey().references(() => memberships.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  emailEnabled: boolean("email_enabled").notNull().default(true),
+  mutedTypes: text("muted_types").array().notNull().default([]),
+  quietStartHour: integer("quiet_start_hour"),
+  quietEndHour: integer("quiet_end_hour"),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
 export const employees = pgTable(
   "employees",
   {
@@ -532,10 +567,12 @@ export const employees = pgTable(
     email: text("email"),
     jobTitle: text("job_title"),
     department: text("department"),
+    branchId: uuid("branch_id"),
     hireDate: date("hire_date"),
     exitDate: date("exit_date"),
     status: text("status").notNull().default("active"), // active | exited
     salary: money("salary"), // dado sensível — permissão employees.view_salary
+    anonymizedAt: ts("anonymized_at"),
     createdAt: createdAt(),
     deletedAt: ts("deleted_at"),
   },
