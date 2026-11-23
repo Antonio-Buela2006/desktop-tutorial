@@ -1,7 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { db, type DbOrTx } from "../db/client.js";
 import { memberships, notifications, users } from "../db/schema.js";
+import nodemailer from "nodemailer";
 import { config } from "../config.js";
+
+let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 import { effectivePermissions, activeModulesOf } from "./context.js";
 
 /** Transporte de e-mail desacoplado. "console" em desenvolvimento; integrar fornecedor real em produção. */
@@ -10,8 +13,17 @@ export async function sendMail(to: string, subject: string, body: string) {
     if (!config.isTest) console.log(`\n📧 [mail] Para: ${to}\nAssunto: ${subject}\n${body}\n`);
     return;
   }
-  // Ponto de integração (Resend/SES/SMTP) — ver docs/architecture/integrations.md
-  console.warn(`[mail] transporte "${config.mailTransport}" não configurado; e-mail para ${to} não enviado.`);
+  if (config.mailTransport === "smtp") {
+    try {
+      transporter ??= nodemailer.createTransport(process.env.SMTP_URL!);
+      await transporter.sendMail({ from: process.env.MAIL_FROM ?? "Nexora <no-reply@nexora.local>", to, subject, text: body });
+    } catch (e) {
+      // Falha de e-mail nunca interrompe a operação de negócio; fica registada nos logs.
+      console.error(`[mail] falha ao enviar para ${to}:`, (e as Error).message);
+    }
+    return;
+  }
+  console.warn(`[mail] transporte "${config.mailTransport}" desconhecido; e-mail para ${to} não enviado.`);
 }
 
 type NotifyInput = { type: string; title: string; body?: string; severity?: "info" | "warning" | "critical"; link?: string; dedupeKey?: string };

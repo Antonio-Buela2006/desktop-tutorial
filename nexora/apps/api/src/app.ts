@@ -18,6 +18,9 @@ import { billingRoutes } from "./modules/billing.routes.js";
 import { adminRoutes } from "./modules/admin.routes.js";
 import { publicRoutes } from "./modules/public.routes.js";
 import { aiRoutes } from "./ai/ai.routes.js";
+import multipart from "@fastify/multipart";
+import { fileRoutes } from "./modules/files.routes.js";
+import { registerObservability } from "./core/observability.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -42,6 +45,8 @@ export async function buildApp() {
   await app.register(cors, { origin: config.webOrigin, credentials: true });
   await app.register(cookie);
   await app.register(rateLimit, { global: true, max: config.isTest ? 10_000 : 300, timeWindow: "1 minute" });
+  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 + 1, files: 1, fields: 5 } });
+  registerObservability(app);
   await app.register(swagger, { openapi: { info: { title: "Nexora API", version: "1.0.0", description: "API v1 da plataforma Nexora (multi-tenant)." } } });
   await app.register(swaggerUi, { routePrefix: "/api/docs" });
 
@@ -67,6 +72,7 @@ export async function buildApp() {
   await app.register(businessRoutes);
   await app.register(billingRoutes);
   await app.register(aiRoutes);
+  await app.register(fileRoutes);
   await app.register(adminRoutes);
   return app;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, LogOut as ExitIcon, UserX, UserCheck, KeyRound } from "lucide-react";
+import { Plus, Pencil, Trash2, LogOut as ExitIcon, UserX, UserCheck, KeyRound, Paperclip } from "lucide-react";
+import { DocumentsModal } from "../../components/Documents";
 import { del, fmtDate, fmtDateTime, fmtMoney, post, put, useAction, useApi } from "../../lib/api";
 import { Alert, Badge, Button, Card, DataTable, ErrorState, ErrorText, Field, Input, Loading, Modal, PageHeader, Select, useConfirm, useToast } from "../../components/ui";
 import { can } from "../../layouts/AppLayout";
@@ -32,6 +33,7 @@ export function Employees() {
   const list = useList("employees", "/api/company/employees", { status });
   const [edit, setEdit] = useState<any | null>(null);
   const [offboard, setOffboard] = useState<any | null>(null);
+  const [docs, setDocs] = useState<any | null>(null);
   const { confirm, dialog } = useConfirm();
   const { toast, toastEl } = useToast();
   const remove = useAction((id: string) => del(`/api/company/employees/${id}`), [["employees"]]);
@@ -53,6 +55,7 @@ export function Employees() {
           {
             key: "a", header: "", className: "text-right", render: (r: any) => (
               <div className="flex justify-end gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setDocs(r)} aria-label={`Documentos de ${r.fullName}`}><Paperclip className="h-4 w-4" /></Button>
                 {can(me, "employees.edit") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setEdit(r)} aria-label="Editar"><Pencil className="h-4 w-4" /></Button>}
                 {r.status === "active" && can(me, "employees.offboard") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setOffboard(r)} aria-label="Registar saída"><ExitIcon className="h-4 w-4" /></Button>}
                 {can(me, "employees.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label="Eliminar" onClick={async () => { if (await confirm("Eliminar registo", `O registo de ${r.fullName} vai para a lixeira.`)) { await remove.mutateAsync(r.id); toast("Registo movido para a lixeira."); } }}><Trash2 className="h-4 w-4" /></Button>}
@@ -61,6 +64,7 @@ export function Employees() {
           },
         ]} />
       <EmployeeForm value={edit} salary={salary} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); toast("Funcionário guardado."); }} />
+      {docs && <DocumentsModal entityType="employee" entity={{ id: docs.id, name: docs.fullName }} canEdit={can(me, "employees.edit") && w} onClose={() => setDocs(null)} />}
       <OffboardForm value={offboard} onClose={() => setOffboard(null)} onSaved={(r) => { setOffboard(null); toast(r.accountDisabled ? "Saída registada; acesso revogado e vaga libertada." : "Saída registada."); }} />
       {dialog}{toastEl}
     </>

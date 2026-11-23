@@ -60,6 +60,22 @@ export async function audit(input: AuditInput, tx: DbOrTx = db) {
   else await run(tx);
 }
 
+type ChainRow = { id: number; tenantId: string | null; actorType: string; actorId: string | null; action: string; entityType: string | null; entityId: string | null; summary: string; metadata: unknown; createdAt: Date; prevHash: string | null; hash: string };
+
+/** Verificação pura da cadeia (reutilizada no teste de restauro de backups). Devolve o id inconsistente ou null. */
+export function verifyChainRows(rows: ChainRow[]): number | null {
+  let prev: string | null = null;
+  for (const r of rows) {
+    const body = {
+      tenantId: r.tenantId, actorType: r.actorType, actorId: r.actorId, action: r.action, entityType: r.entityType,
+      entityId: r.entityId, summary: r.summary, metadata: r.metadata, createdAt: new Date(r.createdAt).toISOString(),
+    };
+    if (r.prevHash !== prev || r.hash !== sha256((prev ?? "") + canonicalJson(body))) return r.id;
+    prev = r.hash;
+  }
+  return null;
+}
+
 /** Recalcula a cadeia de hashes de um tenant; devolve o id do primeiro registo inconsistente ou null. */
 export async function verifyAuditChain(tenantId: string | null): Promise<number | null> {
   const rows = await db
@@ -67,21 +83,5 @@ export async function verifyAuditChain(tenantId: string | null): Promise<number 
     .from(auditEvents)
     .where(tenantId ? eq(auditEvents.tenantId, tenantId) : isNull(auditEvents.tenantId))
     .orderBy(auditEvents.id);
-  let prev: string | null = null;
-  for (const r of rows) {
-    const body = {
-      tenantId: r.tenantId,
-      actorType: r.actorType,
-      actorId: r.actorId,
-      action: r.action,
-      entityType: r.entityType,
-      entityId: r.entityId,
-      summary: r.summary,
-      metadata: r.metadata,
-      createdAt: r.createdAt.toISOString(),
-    };
-    if (r.prevHash !== prev || r.hash !== sha256((prev ?? "") + canonicalJson(body))) return r.id;
-    prev = r.hash;
-  }
-  return null;
+  return verifyChainRows(rows);
 }

@@ -15,6 +15,7 @@ import { assertCapacity, createTenant } from "../core/tenantService.js";
 import { seedDemoData } from "../core/demoData.js";
 import { notifyMembership, sendMail } from "../core/notify.js";
 import { config } from "../config.js";
+import { assertIpAllowed, recordAuthFailure } from "../core/ipguard.js";
 
 const MAX_FAILED = 5;
 const LOCK_MINUTES = 15;
@@ -79,7 +80,7 @@ const signupSchema = z.object({
 });
 
 export async function authRoutes(app: FastifyInstance) {
-  const loginLimit = { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } };
+  const loginLimit = { config: { rateLimit: { max: config.isTest ? 1000 : 10, timeWindow: "1 minute" } } };
 
   app.post("/api/auth/signup", loginLimit, async (req, reply) => {
     const body = parse(signupSchema, req.body);
@@ -94,10 +95,12 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/api/auth/login", loginLimit, async (req, reply) => {
     const body = parse(z.object({ email: z.string().email(), password: z.string().max(200), tenantId: z.string().uuid().optional() }), req.body);
+    assertIpAllowed(req.ip);
     const [user] = await db.select().from(users).where(eq(users.email, body.email.trim().toLowerCase()));
     const fail = () => new AppError(401, "INVALID_CREDENTIALS", "E-mail ou palavra-passe incorretos.");
     if (!user) {
       await verifyPassword(body.password, "$2a$04$invalidinvalidinvalidinOq3J0gYbZr9Pz0w0W8b3nR9gk2Y6Vq"); // tempo constante
+      await recordAuthFailure(req.ip, "login");
       throw fail();
     }
     if (user.lockedUntil && user.lockedUntil > new Date())
@@ -108,6 +111,7 @@ export async function authRoutes(app: FastifyInstance) {
         .update(users)
         .set({ failedLogins: failed, lockedUntil: failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null })
         .where(eq(users.id, user.id));
+      await recordAuthFailure(req.ip, "login");
       if (failed >= MAX_FAILED) await audit({ tenantId: null, actorType: "system", action: "auth.account_locked", entityType: "user", entityId: user.id, summary: "Conta bloqueada temporariamente por tentativas falhadas.", ip: req.ip });
       throw fail();
     }
@@ -208,7 +212,9 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/api/auth/2fa/verify", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req) => {
     const ctx = requireCtx(req, { allowMfaPending: true });
     const { code } = parse(z.object({ code: z.string().min(6).max(20) }), req.body);
+    assertIpAllowed(req.ip);
     const kind = await checkTotp(ctx.user, code);
+    if (!kind) await recordAuthFailure(req.ip, "2fa");
     if (!kind) throw new AppError(401, "INVALID_CODE", "Código inválido.");
     await db.update(sessions).set({ mfaVerified: true }).where(eq(sessions.id, ctx.sessionId));
     await audit({ ...auditBase(ctx), action: "auth.mfa_verified", summary: kind === "recovery" ? "2FA validado com código de recuperação." : "2FA validado." });

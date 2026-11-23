@@ -399,11 +399,34 @@ export const exportJobs = pgTable("export_jobs", {
   tokenHash: text("token_hash").notNull().unique(),
   content: text("content").notNull(),
   contentType: text("content_type").notNull(),
+  // utf8 para CSV/JSON; base64 para formatos binários (XLSX/PDF)
+  encoding: text("encoding").notNull().default("utf8"),
   fileName: text("file_name").notNull(),
   expiresAt: ts("expires_at").notNull(),
   downloadedAt: ts("downloaded_at"),
   createdAt: createdAt(),
 });
+
+/** Ficheiros privados (documentos de funcionários, clientes…). Chave de armazenamento prefixada pelo tenant. */
+export const fileAssets = pgTable(
+  "file_assets",
+  {
+    id: id(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    entityType: text("entity_type").notNull(), // employee | customer
+    entityId: uuid("entity_id").notNull(),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    sha256: text("sha256").notNull(),
+    storageKey: text("storage_key").notNull(),
+    category: text("category"),
+    uploadedBy: uuid("uploaded_by").notNull(),
+    createdAt: createdAt(),
+    deletedAt: ts("deleted_at"),
+  },
+  (t) => [index("file_assets_entity").on(t.tenantId, t.entityType, t.entityId)],
+);
 
 export const supportAccessGrants = pgTable("support_access_grants", {
   id: id(),

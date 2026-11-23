@@ -19,12 +19,25 @@ Em produção o fornecedor `sandbox` é recusado e os links de convite não são
 
 ## Checklist antes de produção (§16, §20)
 - [ ] TLS/HTTPS, WAF e rate limiting no edge; cookies `secure` (automático com `NODE_ENV=production`).
-- [ ] Backups automáticos encriptados várias vezes ao dia, com **teste de restauro** documentado
-      (RPO/RTO a definir). `pg_dump`/snapshots geridos; validar isolamento após restauro.
-- [ ] Observabilidade: logs centralizados (a API emite JSON com `reqId`), métricas, alertas,
-      OpenTelemetry/Sentry (ponto de integração).
+- [ ] Agendar backups (ex.: cron a cada 4h: `pnpm backup`) e o teste de restauro diário (`pnpm backup:verify`,
+      sai com código ≠ 0 se falhar → alerta). Sincronizar `BACKUP_DIR` para outra região. Definir RPO/RTO.
+- [ ] Observabilidade: recolher `/api/metrics` (Bearer `METRICS_TOKEN`) em Prometheus/Grafana; alertas para
+      `nexora_http_errors_total`, `nexora_auth_failures_total`, `nexora_ip_blocks_total` e latência p95; logs JSON centralizados.
+- [ ] Ficheiros: `STORAGE_DRIVER=s3` com bucket privado, encriptação e versionamento; antivírus nos uploads.
 - [ ] Ativar RLS (ADR-0003) e rever o threat model.
 - [ ] Fornecedor de pagamentos real validado (sandbox, contrato, webhooks) e dados bancários configurados.
 - [ ] Textos legais, fiscalidade e retenção aprovados profissionalmente.
 - [ ] Pentest / revisão de segurança e plano de resposta a incidentes.
 - [ ] Rollback: imagens versionadas; migrations apenas aditivas por release.
+
+## Backups e restauro (implementado)
+
+```bash
+PG_BIN=/usr/lib/postgresql/16/bin pnpm backup          # pg_dump encriptado AES-256-GCM + manifesto SHA-256, retenção BACKUP_KEEP
+PG_BIN=/usr/lib/postgresql/16/bin pnpm backup:verify   # restaura numa BD temporária e valida
+```
+
+O teste de restauro verifica as checksums, restaura o backup numa base temporária, valida as cadeias de
+auditoria de todas as empresas, confirma que não há registos órfãos (isolamento preservado), regista as
+contagens por empresa e grava `last-restore-test.json`. Restaurar dados de uma só empresa implica
+filtrar por `tenant_id` a partir da cópia restaurada; é um procedimento manual e auditado.

@@ -21,6 +21,7 @@ import { randomToken, sha256 } from "../core/crypto.js";
 import { badRequest, forbidden, notFound } from "../core/errors.js";
 import { pageQuery, parse, toCsv, uuidParam } from "../core/http.js";
 import { MODULE_DATASETS } from "../core/permissions.js";
+import { buildReportPdf, buildXlsx } from "../core/documents.js";
 
 const TRASH_TABLES = {
   customers: { table: customers, perm: "crm.delete", label: (r: any) => r.name },
@@ -117,7 +118,7 @@ export async function governanceRoutes(app: FastifyInstance) {
   /* ---------------- Exportação de dados (por módulo e global) ---------------- */
   app.post("/api/exports", async (req) => {
     const ctx = requireCtx(req);
-    const body = parse(z.object({ scope: z.string().max(40), format: z.enum(["csv", "json"]) }), req.body);
+    const body = parse(z.object({ scope: z.string().max(40), format: z.enum(["csv", "json", "xlsx", "pdf"]) }), req.body);
     if (!ctx.caps.export) throw forbidden("A exportação não está disponível no estado atual da subscrição.", "SUBSCRIPTION_SUSPENDED");
     const moduleKeys = body.scope === "all" ? Object.keys(MODULE_DATASETS) : [body.scope];
     const datasets: string[] = [];
@@ -132,8 +133,18 @@ export async function governanceRoutes(app: FastifyInstance) {
     let content: string;
     let contentType: string;
     let fileName: string;
+    let encoding = "utf8";
     const stamp = new Date().toISOString().slice(0, 10);
-    if (body.format === "json" || datasets.length > 1) {
+    if (body.format === "xlsx" || body.format === "pdf") {
+      const data: Record<string, Record<string, unknown>[]> = {};
+      for (const d of datasets) data[d] = await datasetRows(ctx, d);
+      const meta = { company: ctx.tenant.name, exportedAt: new Date().toISOString() };
+      const buf = body.format === "xlsx" ? await buildXlsx(data, meta) : await buildReportPdf(data, meta);
+      content = buf.toString("base64");
+      encoding = "base64";
+      contentType = body.format === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf";
+      fileName = `nexora-${body.scope}-${stamp}.${body.format}`;
+    } else if (body.format === "json" || datasets.length > 1) {
       const pkg: Record<string, unknown> = { exportedAt: new Date().toISOString(), company: ctx.tenant.name, scope: body.scope, datasets: {} };
       for (const d of datasets) (pkg.datasets as any)[d] = await datasetRows(ctx, d);
       content = JSON.stringify(pkg, null, 2);
@@ -147,7 +158,7 @@ export async function governanceRoutes(app: FastifyInstance) {
     const token = randomToken();
     const [job] = await db
       .insert(exportJobs)
-      .values({ tenantId: ctx.tenant.id, requestedBy: ctx.membership.id, scope: body.scope, format: body.format, datasets, tokenHash: sha256(token), content, contentType, fileName, expiresAt: new Date(Date.now() + 15 * 60_000) })
+      .values({ tenantId: ctx.tenant.id, requestedBy: ctx.membership.id, scope: body.scope, format: body.format, datasets, tokenHash: sha256(token), content, contentType, encoding, fileName, expiresAt: new Date(Date.now() + 15 * 60_000) })
       .returning({ id: exportJobs.id });
     await audit({ ...auditBase(ctx), action: "export.created", entityType: "export", entityId: job.id, summary: `Exportação ${body.format.toUpperCase()} (${datasets.join(", ")}).` });
     return { id: job.id, datasets, downloadUrl: `/api/exports/download/${token}`, expiresInMinutes: 15 };
@@ -160,8 +171,8 @@ export async function governanceRoutes(app: FastifyInstance) {
     const [job] = await db.select().from(exportJobs).where(and(eq(exportJobs.tokenHash, sha256(token)), eq(exportJobs.tenantId, ctx.tenant.id), eq(exportJobs.requestedBy, ctx.membership.id), gt(exportJobs.expiresAt, new Date())));
     if (!job) throw notFound("Link de exportação inválido ou expirado.");
     await db.update(exportJobs).set({ downloadedAt: new Date() }).where(eq(exportJobs.id, job.id));
-    reply.header("content-type", job.contentType).header("content-disposition", `attachment; filename="${job.fileName}"`);
-    return job.content;
+    reply.header("content-type", job.contentType).header("content-disposition", `attachment; filename="${job.fileName}"`).header("cache-control", "private, no-store");
+    return job.encoding === "base64" ? Buffer.from(job.content, "base64") : job.content;
   });
 
   /* ---------------- Acesso excecional de suporte ---------------- */

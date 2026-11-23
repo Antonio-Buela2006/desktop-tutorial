@@ -15,7 +15,9 @@
     "db:seed": "pnpm --filter @nexora/api db:seed",
     "db:reset": "pnpm --filter @nexora/api db:reset",
     "worker": "pnpm --filter @nexora/api worker",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "backup": "pnpm --filter @nexora/api backup",
+    "backup:verify": "pnpm --filter @nexora/api backup:verify"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

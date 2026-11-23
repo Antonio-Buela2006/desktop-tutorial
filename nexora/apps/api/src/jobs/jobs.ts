@@ -24,6 +24,7 @@ import { notifyByPermission } from "../core/notify.js";
 import { computeAccessState, daysOverdue, DAY } from "../core/subscription.js";
 import { nextInvoiceNumber } from "../core/tenantService.js";
 import { getSetting } from "../modules/billing.routes.js";
+import { purgeDeletedFiles } from "../modules/files.routes.js";
 
 /** Emite faturas de renovação 3 dias antes do fim do período (se não houver cancelamento). */
 export async function issueRenewals(now = new Date()) {
@@ -113,6 +114,7 @@ export async function purgeTrash(now = new Date()) {
       const r = await db.delete(table as any).where(and(eq((table as any).tenantId, t.id), isNotNull((table as any).deletedAt), lt((table as any).deletedAt, cutoff))).returning({ id: (table as any).id }).catch(() => []);
       purged += r.length;
     }
+    purged += await purgeDeletedFiles(t.id, cutoff);
     // finance_transactions: NUNCA purgados aqui — obrigação legal de conservação (prazo a validar).
   }
   if (purged) await audit({ tenantId: null, actorType: "system", action: "retention.trash_purged", summary: `${purged} registo(s) eliminados definitivamente após o prazo da lixeira.` });

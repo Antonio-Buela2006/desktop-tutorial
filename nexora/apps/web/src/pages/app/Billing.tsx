@@ -111,7 +111,12 @@ export function Billing() {
         { key: "lines", header: "Descrição", render: (r: any) => r.lines.map((l: any) => l.description).join("; ") },
         { key: "total", header: "Total", render: (r: any) => fmtMoney(r.total, r.currency) },
         { key: "status", header: "Estado", render: (r: any) => <Badge tone={r.status === "paid" ? "green" : r.overdue ? "red" : "amber"}>{r.overdue ? "Vencida" : invStatus[r.status] ?? r.status}</Badge> },
-        { key: "a", header: "", className: "text-right", render: (r: any) => ["issued", "partially_paid"].includes(r.status) && manage && <Button size="sm" onClick={() => setPayInv(r)}>Pagar</Button> },
+        { key: "a", header: "", className: "text-right", render: (r: any) => (
+          <div className="flex justify-end gap-2">
+            <a className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800" href={`/api/billing/invoices/${r.id}/pdf`}>PDF</a>
+            {["issued", "partially_paid"].includes(r.status) && manage && <Button size="sm" onClick={() => setPayInv(r)}>Pagar</Button>}
+          </div>
+        ) },
       ]} />
       {payInv && <PayModal invoice={payInv} providers={data.providers} onClose={() => { setPayInv(null); nav("/app/billing", { replace: true }); }} />}
       {planModal && <PlanModal current={data.plan} plans={data.plans} onClose={() => setPlanModal(false)} onDone={(inv) => { setPlanModal(false); qc.invalidateQueries(); if (inv) setPayInv(inv); toast("Plano alterado."); }} />}

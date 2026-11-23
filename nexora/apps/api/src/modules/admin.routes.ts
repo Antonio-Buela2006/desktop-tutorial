@@ -35,6 +35,7 @@ import { usageOf } from "../core/tenantService.js";
 import { confirmPayment } from "./billing.routes.js";
 import { runAllJobs } from "../jobs/jobs.js";
 import { DATASET_TABLES } from "./governance.routes.js";
+import { assertIpAllowed, recordAuthFailure } from "../core/ipguard.js";
 
 const ADMIN_COOKIE = "nx_admin";
 type Admin = typeof platformAdmins.$inferSelect;
@@ -66,8 +67,11 @@ const adminAudit = (a: Admin, req: FastifyRequest) => ({ actorType: "platform_ad
 export async function adminRoutes(app: FastifyInstance) {
   app.post("/api/admin/auth/login", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req, reply) => {
     const body = parse(z.object({ email: z.string().email(), password: z.string(), code: z.string().optional() }), req.body);
+    assertIpAllowed(req.ip);
     const [a] = await db.select().from(platformAdmins).where(eq(platformAdmins.email, body.email.toLowerCase()));
-    if (!a || !a.isActive || !(await verifyPassword(body.password, a.passwordHash))) throw new AppError(401, "INVALID_CREDENTIALS", "Credenciais inválidas.");
+    const ok = !!a && a.isActive && (await verifyPassword(body.password, a.passwordHash));
+    if (!ok) await recordAuthFailure(req.ip, "admin_login");
+    if (!ok) throw new AppError(401, "INVALID_CREDENTIALS", "Credenciais inválidas.");
     if (a.totpEnabled) {
       if (!body.code) throw new AppError(401, "MFA_REQUIRED", "Introduza o código 2FA.");
       const r = await verifyTotp({ secret: decrypt(a.totpSecret!), token: body.code, epochTolerance: 30 });

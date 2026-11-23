@@ -32,7 +32,7 @@ export function Audit() {
 export function Exports() {
   const me = useMeCtx();
   const [scope, setScope] = useState("all");
-  const [format, setFormat] = useState("json");
+  const [format, setFormat] = useState("xlsx");
   const run = useAction((v: any) => post("/api/exports", v));
   const options = [["all", "Todos os dados que posso exportar"], ["core", "Funcionários"], ...[["crm", "Clientes"], ["inventory", "Stock"], ["sales", "Vendas"], ["finance", "Finanças"]].filter(([m]) => me.modules.includes(m))];
   return (
@@ -41,7 +41,7 @@ export function Exports() {
       <Card>
         <div className="grid max-w-xl gap-3 sm:grid-cols-2">
           <Field label="Âmbito"><Select value={scope} onChange={(e) => setScope(e.target.value)}>{options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></Field>
-          <Field label="Formato" hint="CSV para um conjunto; pacote JSON para vários."><Select value={format} onChange={(e) => setFormat(e.target.value)}><option value="json">JSON (pacote estruturado)</option><option value="csv">CSV (folha de cálculo)</option></Select></Field>
+          <Field label="Formato" hint="CSV aplica-se a um conjunto; XLSX cria uma folha por conjunto."><Select value={format} onChange={(e) => setFormat(e.target.value)}><option value="xlsx">Excel (XLSX)</option><option value="pdf">Relatório PDF</option><option value="json">JSON (pacote estruturado)</option><option value="csv">CSV</option></Select></Field>
         </div>
         <Button className="mt-4" loading={run.isPending} onClick={() => run.mutate({ scope, format })}>Gerar exportação</Button>
         {run.error && <div className="mt-3"><ErrorText error={run.error} /></div>}

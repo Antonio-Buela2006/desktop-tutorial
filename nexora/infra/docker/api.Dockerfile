@@ -10,6 +10,8 @@ RUN pnpm --filter @nexora/api build
 FROM node:22-alpine
 WORKDIR /app/apps/api
 ENV NODE_ENV=production
+# Cliente PostgreSQL para pnpm backup / backup:verify a partir do contentor
+RUN apk add --no-cache postgresql16-client
 RUN corepack enable
 COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/
 COPY --from=build /app/apps/api/package.json ./

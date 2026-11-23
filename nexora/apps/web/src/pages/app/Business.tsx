@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Plus, Trash2, Pencil, PackagePlus, Ban, Check, X } from "lucide-react";
+import { Plus, Trash2, Pencil, PackagePlus, Ban, Check, X, Paperclip } from "lucide-react";
+import { DocumentsModal } from "../../components/Documents";
 import { del, fmtDate, fmtDateTime, fmtMoney, fmtNum, post, put, useAction, useApi, type Me } from "../../lib/api";
 import { Alert, Badge, Button, Card, DataTable, ErrorState, ErrorText, Field, Input, Loading, Modal, PageHeader, Select, Stat, useConfirm, useToast, useUnsavedGuard } from "../../components/ui";
 import { can } from "../../layouts/AppLayout";
@@ -74,6 +75,7 @@ export function Customers() {
   const me = useMeCtx();
   const list = useList("customers", "/api/crm/customers");
   const [edit, setEdit] = useState<any | null>(null);
+  const [docs, setDocs] = useState<any | null>(null);
   const { confirm, dialog } = useConfirm();
   const { toast, toastEl } = useToast();
   const remove = useAction((id: string) => del(`/api/crm/customers/${id}`), [["customers"]]);
@@ -93,6 +95,7 @@ export function Customers() {
           {
             key: "a", header: "", className: "text-right", render: (r: any) => (
               <div className="flex justify-end gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setDocs(r)} aria-label={`Documentos de ${r.name}`}><Paperclip className="h-4 w-4" /></Button>
                 {can(me, "crm.edit") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setEdit(r)} aria-label={`Editar ${r.name}`}><Pencil className="h-4 w-4" /></Button>}
                 {can(me, "crm.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label={`Eliminar ${r.name}`} onClick={async () => { if (await confirm("Eliminar cliente", <>O cliente <strong>{r.name}</strong> vai para a lixeira e pode ser restaurado durante 30 dias.</>)) { await remove.mutateAsync(r.id); toast("Cliente movido para a lixeira."); } }}><Trash2 className="h-4 w-4" /></Button>}
               </div>
@@ -100,6 +103,7 @@ export function Customers() {
           },
         ]}
       />
+      {docs && <DocumentsModal entityType="customer" entity={{ id: docs.id, name: docs.name }} canEdit={can(me, "crm.edit") && w} onClose={() => setDocs(null)} />}
       <CustomerForm value={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); toast("Cliente guardado."); }} />
       {dialog}{toastEl}
     </>
