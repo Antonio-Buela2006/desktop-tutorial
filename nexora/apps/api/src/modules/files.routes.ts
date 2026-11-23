@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "../db/client.js";
 import { customers, employees, fileAssets } from "../db/schema.js";
 import { audit } from "../core/audit.js";
-import { auditBase, authorize, requireCtx, type Ctx } from "../core/context.js";
+import { auditBase, authorize, branchCondition, requireCtx, type Ctx } from "../core/context.js";
 import { badRequest, notFound } from "../core/errors.js";
 import { parse, uuidParam } from "../core/http.js";
 import { deleteObject, getObject, MAX_FILE_BYTES, putObject, sanitizeFileName, storageKey, validateFile } from "../core/storage.js";
@@ -20,7 +20,8 @@ type EntityType = keyof typeof ENTITIES;
 
 async function assertEntity(ctx: Ctx, type: EntityType, id: string) {
   const t: any = ENTITIES[type].table;
-  const [row] = await db.select({ id: t.id }).from(t).where(and(eq(t.id, id), eq(t.tenantId, ctx.tenant.id), isNull(t.deletedAt)));
+  const scope = type === "employee" ? branchCondition(ctx, employees.branchId) : undefined;
+  const [row] = await db.select({ id: t.id }).from(t).where(and(eq(t.id, id), eq(t.tenantId, ctx.tenant.id), isNull(t.deletedAt), scope));
   if (!row) throw notFound();
 }
 
@@ -67,6 +68,7 @@ export async function fileRoutes(app: FastifyInstance) {
     const [f] = await db.select().from(fileAssets).where(and(eq(fileAssets.id, id), eq(fileAssets.tenantId, ctx.tenant.id), isNull(fileAssets.deletedAt)));
     if (!f) throw notFound();
     authorize(ctx, ENTITIES[f.entityType as EntityType].view, "export");
+    await assertEntity(ctx, f.entityType as EntityType, f.entityId);
     const data = await getObject(f.storageKey);
     // Verificação de integridade antes de entregar
     if (createHash("sha256").update(data).digest("hex") !== f.sha256) throw badRequest("Ficheiro corrompido; contacte o suporte.");
@@ -85,6 +87,7 @@ export async function fileRoutes(app: FastifyInstance) {
     const [f] = await db.select().from(fileAssets).where(and(eq(fileAssets.id, id), eq(fileAssets.tenantId, ctx.tenant.id), isNull(fileAssets.deletedAt)));
     if (!f) throw notFound();
     authorize(ctx, ENTITIES[f.entityType as EntityType].edit);
+    await assertEntity(ctx, f.entityType as EntityType, f.entityId);
     await db.update(fileAssets).set({ deletedAt: new Date() }).where(eq(fileAssets.id, id));
     await audit({ ...auditBase(ctx), action: "file.deleted", entityType: f.entityType, entityId: f.entityId, summary: `Documento "${f.fileName}" movido para a lixeira.`, metadata: { fileId: f.id } });
     return { ok: true };

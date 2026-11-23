@@ -4,9 +4,10 @@
  * `requireCtx` + `authorize`.
  */
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { and, eq, gt, inArray, isNull, lte, min } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lte, min, type AnyColumn } from "drizzle-orm";
 import { db } from "../db/client.js";
 import {
+  branches,
   invoices,
   memberships,
   membershipRoles,
@@ -37,6 +38,8 @@ export type Ctx = {
   caps: AccessCapabilities;
   modules: Set<string>;
   permissions: Set<string>;
+  /** null = todas as unidades; caso contrário, ids das unidades a que o utilizador está restrito. */
+  branchScope: string[] | null;
   mfaPending: boolean; // tem 2FA ativo mas ainda não validou nesta sessão
   mfaEnrollmentRequired: boolean; // política da empresa exige 2FA e o utilizador não o configurou
   ip: string;
@@ -151,6 +154,8 @@ export async function resolveSession(req: FastifyRequest): Promise<Ctx | null> {
     permissions,
     mfaPending: row.u.totpEnabled && !row.s.mfaVerified,
     mfaEnrollmentRequired: needs2fa && !row.u.totpEnabled,
+    // Administradores não são restringidos por unidade.
+    branchScope: row.m.level === "member" && row.m.branchIds.length ? row.m.branchIds : null,
     ip: req.ip,
     traceId: String(req.id),
   };
@@ -206,3 +211,31 @@ export function auditBase(ctx: Ctx) {
   return { tenantId: ctx.tenant.id, actorType: "user" as const, actorId: ctx.membership.id, ip: ctx.ip, traceId: ctx.traceId };
 }
 
+
+/**
+ * Condição SQL do âmbito por unidade para uma coluna branch_id.
+ * Utilizadores restritos só veem registos das suas unidades (registos sem unidade ficam fora do âmbito).
+ * `requested` permite filtrar por uma unidade concreta (validada contra o âmbito).
+ */
+export function branchCondition(ctx: Ctx, column: AnyColumn, requested?: string) {
+  if (requested) {
+    if (ctx.branchScope && !ctx.branchScope.includes(requested)) throw forbidden("Unidade fora do seu âmbito.", "BRANCH_OUT_OF_SCOPE");
+    return eq(column, requested);
+  }
+  return ctx.branchScope ? inArray(column, ctx.branchScope) : undefined;
+}
+
+/** Valida a unidade indicada numa criação/alteração: tem de existir no tenant e estar no âmbito do utilizador. */
+export async function resolveBranchForWrite(ctx: Ctx, branchId: string | null | undefined): Promise<string | null> {
+  if (!branchId) {
+    if (ctx.branchScope) {
+      if (ctx.branchScope.length === 1) return ctx.branchScope[0];
+      throw new AppError(400, "BRANCH_REQUIRED", "Indique a unidade.");
+    }
+    return null;
+  }
+  if (ctx.branchScope && !ctx.branchScope.includes(branchId)) throw forbidden("Unidade fora do seu âmbito.", "BRANCH_OUT_OF_SCOPE");
+  const [b] = await db.select({ id: branches.id }).from(branches).where(and(eq(branches.id, branchId), eq(branches.tenantId, ctx.tenant.id)));
+  if (!b) throw new AppError(400, "BAD_REQUEST", "Unidade inválida.");
+  return branchId;
+}

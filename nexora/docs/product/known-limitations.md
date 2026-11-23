@@ -18,4 +18,4 @@ Transparência exigida pela especificação (§17, §20). Lista honesta do estad
 11. **Backups/DR**: `pnpm backup` cria cópias encriptadas e `pnpm backup:verify` restaura e valida automaticamente (testado). Falta agendar na infraestrutura escolhida e replicar para outra região; RPO/RTO por definir.
 12. **i18n**: navegação e IA em PT/EN; a maior parte dos textos de ecrã está em português.
 13. **Site público**: SPA sem SSR (SEO limitado) — ADR-0001.
-14. **Unidades/filiais**: registo de unidades e associação de funcionários; a filtragem por unidade nos restantes módulos (stock, vendas, finanças) e as permissões por unidade ainda não existem.
+14. **Unidades/filiais**: funcionários, vendas e finanças têm unidade, e os utilizadores podem ser restringidos a unidades (verificado no servidor). O **stock é único por empresa**: ainda não há armazéns nem stock separado por unidade.

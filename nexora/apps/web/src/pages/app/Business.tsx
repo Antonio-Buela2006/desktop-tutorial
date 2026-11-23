@@ -9,6 +9,25 @@ import { can } from "../../layouts/AppLayout";
 
 export const useMeCtx = () => useOutletContext<Me>();
 
+/** Unidades visíveis para o utilizador (todas, ou só as do seu âmbito). */
+export function useBranches() {
+  const me = useMeCtx();
+  const { data } = useApi<any[]>(["branches"], "/api/company/branches");
+  const all = (data ?? []).filter((b) => b.isActive);
+  return me.membership.branchScope ? all.filter((b) => me.membership.branchScope!.includes(b.id)) : all;
+}
+
+export function BranchSelect({ value, onChange, allLabel = "Todas as unidades", required }: { value: string; onChange: (v: string) => void; allLabel?: string; required?: boolean }) {
+  const branches = useBranches();
+  if (!branches.length) return null;
+  return (
+    <Select aria-label="Unidade" value={value} onChange={(e) => onChange(e.target.value)} className="w-48" required={required}>
+      <option value="">{allLabel}</option>
+      {branches.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}
+    </Select>
+  );
+}
+
 /** Estado de listagem paginada no servidor com pesquisa (debounce simples). */
 export function useList<T = any>(key: string, base: string, extra: Record<string, string> = {}) {
   const [page, setPage] = useState(1);
@@ -25,7 +44,8 @@ export function useList<T = any>(key: string, base: string, extra: Record<string
 /* ============================== Dashboard ============================== */
 export function Dashboard() {
   const me = useMeCtx();
-  const { data, isLoading, error } = useApi<any>(["dashboard"], "/api/dashboard");
+  const [branch, setBranch] = useState("");
+  const { data, isLoading, error } = useApi<any>(["dashboard", branch], `/api/dashboard${branch ? `?branchId=${branch}` : ""}`);
   const cur = me.tenant.currency;
   if (isLoading) return <Loading />;
   if (error) return <ErrorState error={error} />;
@@ -33,7 +53,7 @@ export function Dashboard() {
   const delta = s && s.previousMonth ? Math.round(((s.month - s.previousMonth) / s.previousMonth) * 100) : null;
   return (
     <>
-      <PageHeader title={`Olá, ${me.user.name.split(" ")[0]}`} subtitle={`${me.tenant.name} · indicadores adaptados às suas permissões`} />
+      <PageHeader title={`Olá, ${me.user.name.split(" ")[0]}`} subtitle={`${me.tenant.name} · indicadores adaptados às suas permissões${me.membership.branchScope ? " e unidades" : ""}`} actions={<BranchSelect value={branch} onChange={setBranch} />} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {s && <Stat label="Vendas do mês" value={fmtMoney(s.month, cur)} hint={delta !== null ? `${delta >= 0 ? "+" : ""}${delta}% vs mês anterior completo` : undefined} tone={delta !== null ? (delta >= 0 ? "up" : "down") : undefined} />}
         {data.finance && <Stat label="Resultado do mês" value={fmtMoney(data.finance.result, cur)} hint={`${data.finance.pendingApprovals} despesa(s) por aprovar`} />}
@@ -263,7 +283,9 @@ function AdjustForm({ value, onClose, onSaved }: { value: any | null; onClose: (
 /* ============================== Vendas ============================== */
 export function Sales() {
   const me = useMeCtx();
-  const list = useList("sales", "/api/sales/orders");
+  const [branch, setBranch] = useState("");
+  const branches = useBranches();
+  const list = useList("sales", "/api/sales/orders", branch ? { branchId: branch } : {});
   const [creating, setCreating] = useState(false);
   const { confirm, dialog } = useConfirm();
   const { toast, toastEl } = useToast();
@@ -274,7 +296,9 @@ export function Sales() {
     <>
       <PageHeader title="Vendas" subtitle="Cada venda dá baixa de stock automaticamente, numa única transação." actions={can(me, "sales.create") && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> Nova venda</Button>} />
       <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
+        toolbar={<BranchSelect value={branch} onChange={setBranch} />}
         columns={[
+          ...(branches.length ? [{ key: "branch", header: "Unidade", render: (r: any) => branches.find((b) => b.id === r.branchId)?.name ?? "—" }] : []),
           { key: "number", header: "N.º", render: (r: any) => <span className="font-mono text-xs">{r.number}</span> },
           { key: "soldAt", header: "Data", render: (r: any) => fmtDate(r.soldAt) },
           { key: "customer", header: "Cliente", render: (r: any) => r.customer ?? "Consumidor final" },
@@ -294,14 +318,16 @@ function SaleForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
   const prods = useApi<any>(["products-all"], "/api/inventory/products?pageSize=100");
   const custs = useApi<any>(["customers-all"], can(me, "crm.view") ? "/api/crm/customers?pageSize=100&sort=name&dir=asc" : null);
   const [customerId, setCustomerId] = useState("");
+  const [branchId, setBranchId] = useState(me.membership.branchScope?.length === 1 ? me.membership.branchScope[0] : "");
   const [lines, setLines] = useState([{ productId: "", quantity: 1 }]);
   const save = useAction((v: any) => post("/api/sales/orders", v), [["sales"], ["products"], ["dashboard"]]);
   const items = prods.data?.items ?? [];
   const total = lines.reduce((s, l) => s + (items.find((p: any) => p.id === l.productId)?.unitPrice ?? 0) * l.quantity, 0);
   return (
     <Modal open onClose={onClose} title="Nova venda" wide>
-      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); await save.mutateAsync({ customerId: customerId || undefined, lines: lines.filter((l) => l.productId) }); onSaved(); }}>
+      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); await save.mutateAsync({ customerId: customerId || undefined, branchId: branchId || null, lines: lines.filter((l) => l.productId) }); onSaved(); }}>
         {save.error && <ErrorText error={save.error} />}
+        <div className="[&_select]:w-full"><BranchField value={branchId} onChange={setBranchId} /></div>
         {custs.data && <Field label="Cliente"><Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}><option value="">Consumidor final</option>{custs.data.items.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>}
         {lines.map((l, i) => (
           <div key={i} className="grid grid-cols-[1fr_90px_auto] items-end gap-2">
@@ -322,7 +348,8 @@ function SaleForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
 export function Finance() {
   const me = useMeCtx();
   const [status, setStatus] = useState("");
-  const list = useList("finance", "/api/finance/transactions", status ? { status } : {});
+  const [branch, setBranch] = useState("");
+  const list = useList("finance", "/api/finance/transactions", { ...(status ? { status } : {}), ...(branch ? { branchId: branch } : {}) });
   const [creating, setCreating] = useState(false);
   const { toast, toastEl } = useToast();
   const decide = useAction(({ id, decision }: any) => post(`/api/finance/transactions/${id}/decision`, { decision }), [["finance"], ["dashboard"]]);
@@ -333,7 +360,7 @@ export function Finance() {
       <PageHeader title="Finanças" subtitle={`Receitas e despesas. Despesas a partir de ${fmtMoney(list.data?.approvalThreshold ?? 500000, cur)} exigem aprovação de outra pessoa.`} actions={can(me, "finance.create") && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> Novo movimento</Button>} />
       {decide.error && <div className="mb-3"><ErrorText error={decide.error} /></div>}
       <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
-        toolbar={<Select aria-label="Filtrar estado" value={status} onChange={(e) => setStatus(e.target.value)} className="w-48"><option value="">Todos os estados</option><option value="pending_approval">Por aprovar</option><option value="approved">Aprovados</option><option value="rejected">Rejeitados</option></Select>}
+        toolbar={<><BranchSelect value={branch} onChange={setBranch} /><Select aria-label="Filtrar estado" value={status} onChange={(e) => setStatus(e.target.value)} className="w-48"><option value="">Todos os estados</option><option value="pending_approval">Por aprovar</option><option value="approved">Aprovados</option><option value="rejected">Rejeitados</option></Select></>}
         columns={[
           { key: "occurredOn", header: "Data", render: (r: any) => fmtDate(r.occurredOn) },
           { key: "kind", header: "Tipo", render: (r: any) => <Badge tone={r.kind === "income" ? "green" : "amber"}>{r.kind === "income" ? "Receita" : "Despesa"}</Badge> },
@@ -357,11 +384,12 @@ export function Finance() {
 }
 
 function FinanceForm({ onClose, onSaved }: { onClose: () => void; onSaved: (r: any) => void }) {
-  const [f, setF] = useState({ kind: "expense", category: "", description: "", amount: 0, occurredOn: new Date().toISOString().slice(0, 10) });
+  const me = useMeCtx();
+  const [f, setF] = useState({ kind: "expense", category: "", description: "", amount: 0, occurredOn: new Date().toISOString().slice(0, 10), branchId: me.membership.branchScope?.length === 1 ? me.membership.branchScope[0] : "" });
   const save = useAction((v: any) => post("/api/finance/transactions", v), [["finance"], ["dashboard"]]);
   return (
     <Modal open onClose={onClose} title="Novo movimento financeiro">
-      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); onSaved(await save.mutateAsync({ ...f, amount: +f.amount })); }}>
+      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); onSaved(await save.mutateAsync({ ...f, amount: +f.amount, branchId: f.branchId || null })); }}>
         {save.error && <ErrorText error={save.error} />}
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Tipo"><Select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}><option value="expense">Despesa</option><option value="income">Receita</option></Select></Field>
@@ -370,8 +398,25 @@ function FinanceForm({ onClose, onSaved }: { onClose: () => void; onSaved: (r: a
           <Field label="Valor"><Input type="number" min={0.01} step="0.01" required value={f.amount} onChange={(e) => setF({ ...f, amount: +e.target.value })} /></Field>
         </div>
         <Field label="Descrição"><Input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
+        <BranchField value={f.branchId} onChange={(v) => setF({ ...f, branchId: v })} />
         <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Registar</Button></div>
       </form>
     </Modal>
+  );
+}
+
+/** Campo de unidade para formulários (obrigatório quando o utilizador está restrito a várias unidades). */
+function BranchField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const me = useMeCtx();
+  const branches = useBranches();
+  if (!branches.length) return null;
+  const scoped = !!me.membership.branchScope;
+  return (
+    <Field label="Unidade">
+      <Select value={value} required={scoped} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{scoped ? "Escolher…" : "Sem unidade (empresa)"}</option>
+        {branches.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}
+      </Select>
+    </Field>
   );
 }

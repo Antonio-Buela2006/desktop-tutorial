@@ -4,12 +4,12 @@
  * módulo contratado e estado da subscrição através de `authorize`.
  */
 import type { FastifyInstance } from "fastify";
-import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql as dsql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql as dsql, sum, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, type DbOrTx } from "../db/client.js";
 import { customers, employees, financeTransactions, products, salesOrders, stockMovements, type SaleLine } from "../db/schema.js";
 import { audit } from "../core/audit.js";
-import { auditBase, authorize, can, requireCtx, type Ctx } from "../core/context.js";
+import { auditBase, authorize, branchCondition, can, requireCtx, resolveBranchForWrite, type Ctx } from "../core/context.js";
 import { AppError, badRequest, forbidden, notFound } from "../core/errors.js";
 import { pageQuery, parse, uuidParam } from "../core/http.js";
 import { notifyByPermission } from "../core/notify.js";
@@ -47,6 +47,7 @@ export async function adjustStock(ctx: Ctx, productId: string, delta: number, re
 
 export const expenseBody = z.object({
   kind: z.enum(["income", "expense"]),
+  branchId: z.string().uuid().nullable().optional(),
   category: z.string().trim().min(2).max(80),
   description: z.string().max(500).default(""),
   amount: z.number().positive().max(1e12),
@@ -55,9 +56,10 @@ export const expenseBody = z.object({
 
 export async function createFinanceTx(ctx: Ctx, input: z.infer<typeof expenseBody>, actor: "user" | "ai" = "user", approvedBy?: string) {
   const needsApproval = input.kind === "expense" && input.amount >= EXPENSE_APPROVAL_THRESHOLD && !approvedBy;
+  const branchId = await resolveBranchForWrite(ctx, input.branchId);
   const [t] = await db
     .insert(financeTransactions)
-    .values({ ...input, tenantId: ctx.tenant.id, status: needsApproval ? "pending_approval" : "approved", createdBy: ctx.membership.id, approvedBy: approvedBy ?? null })
+    .values({ ...input, branchId, tenantId: ctx.tenant.id, status: needsApproval ? "pending_approval" : "approved", createdBy: ctx.membership.id, approvedBy: approvedBy ?? null })
     .returning();
   await audit({ ...auditBase(ctx), actorType: actor, action: "finance.created", entityType: "finance_transaction", entityId: t.id, summary: `${input.kind === "income" ? "Receita" : "Despesa"} ${input.category}: ${input.amount}${needsApproval ? " (aguarda aprovação)" : ""}.` });
   if (needsApproval)
@@ -65,18 +67,20 @@ export async function createFinanceTx(ctx: Ctx, input: z.infer<typeof expenseBod
   return t;
 }
 
-export async function dashboardKpis(ctx: Ctx) {
+export async function dashboardKpis(ctx: Ctx, branchId?: string) {
   const now = new Date();
+  const salesBranch = branchCondition(ctx, salesOrders.branchId, branchId);
+  const finBranch = branchCondition(ctx, financeTransactions.branchId, branchId);
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const prevStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
   const out: Record<string, unknown> = {};
   if (can(ctx, "sales.view")) {
     const [cur] = await db.select({ total: sum(salesOrders.total), n: count() }).from(salesOrders)
-      .where(and(eq(salesOrders.tenantId, ctx.tenant.id), eq(salesOrders.status, "confirmed"), isNull(salesOrders.deletedAt), gte(salesOrders.soldAt, monthStart)));
+      .where(and(eq(salesOrders.tenantId, ctx.tenant.id), eq(salesOrders.status, "confirmed"), isNull(salesOrders.deletedAt), gte(salesOrders.soldAt, monthStart), salesBranch));
     const [prev] = await db.select({ total: sum(salesOrders.total) }).from(salesOrders)
-      .where(and(eq(salesOrders.tenantId, ctx.tenant.id), eq(salesOrders.status, "confirmed"), isNull(salesOrders.deletedAt), gte(salesOrders.soldAt, prevStart), lte(salesOrders.soldAt, monthStart)));
+      .where(and(eq(salesOrders.tenantId, ctx.tenant.id), eq(salesOrders.status, "confirmed"), isNull(salesOrders.deletedAt), gte(salesOrders.soldAt, prevStart), lte(salesOrders.soldAt, monthStart), salesBranch));
     out.sales = { month: Number(cur.total ?? 0), orders: cur.n, previousMonth: Number(prev.total ?? 0) };
-    out.salesByMonth = await monthlySales(ctx.tenant.id, 6);
+    out.salesByMonth = await monthlySales(ctx.tenant.id, 6, salesBranch);
   }
   if (can(ctx, "inventory.view")) {
     const low = await db.select({ id: products.id, name: products.name, sku: products.sku, stockQty: products.stockQty, reorderLevel: products.reorderLevel }).from(products)
@@ -87,11 +91,11 @@ export async function dashboardKpis(ctx: Ctx) {
   if (can(ctx, "finance.view")) {
     const monthStr = monthStart.toISOString().slice(0, 10);
     const rows = await db.select({ kind: financeTransactions.kind, total: sum(financeTransactions.amount) }).from(financeTransactions)
-      .where(and(eq(financeTransactions.tenantId, ctx.tenant.id), isNull(financeTransactions.deletedAt), eq(financeTransactions.status, "approved"), gte(financeTransactions.occurredOn, monthStr)))
+      .where(and(eq(financeTransactions.tenantId, ctx.tenant.id), isNull(financeTransactions.deletedAt), eq(financeTransactions.status, "approved"), gte(financeTransactions.occurredOn, monthStr), finBranch))
       .groupBy(financeTransactions.kind);
     const income = Number(rows.find((r) => r.kind === "income")?.total ?? 0);
     const expense = Number(rows.find((r) => r.kind === "expense")?.total ?? 0);
-    const [{ pending }] = await db.select({ pending: count() }).from(financeTransactions).where(and(eq(financeTransactions.tenantId, ctx.tenant.id), eq(financeTransactions.status, "pending_approval"), isNull(financeTransactions.deletedAt)));
+    const [{ pending }] = await db.select({ pending: count() }).from(financeTransactions).where(and(eq(financeTransactions.tenantId, ctx.tenant.id), eq(financeTransactions.status, "pending_approval"), isNull(financeTransactions.deletedAt), finBranch));
     out.finance = { income, expense, result: income - expense, pendingApprovals: pending };
   }
   if (can(ctx, "crm.view")) {
@@ -99,19 +103,19 @@ export async function dashboardKpis(ctx: Ctx) {
     out.customers = { total: n };
   }
   if (can(ctx, "employees.view")) {
-    const [{ n }] = await db.select({ n: count() }).from(employees).where(and(eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt), eq(employees.status, "active")));
+    const [{ n }] = await db.select({ n: count() }).from(employees).where(and(eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt), eq(employees.status, "active"), branchCondition(ctx, employees.branchId, branchId)));
     out.employees = { active: n };
   }
   return out;
 }
 
-export async function monthlySales(tenantId: string, months: number) {
+export async function monthlySales(tenantId: string, months: number, extra?: SQL) {
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1));
   const rows = await db
     .select({ month: dsql<string>`to_char(date_trunc('month', ${salesOrders.soldAt}), 'YYYY-MM')`, total: sum(salesOrders.total) })
     .from(salesOrders)
-    .where(and(eq(salesOrders.tenantId, tenantId), eq(salesOrders.status, "confirmed"), isNull(salesOrders.deletedAt), gte(salesOrders.soldAt, from)))
+    .where(and(eq(salesOrders.tenantId, tenantId), eq(salesOrders.status, "confirmed"), isNull(salesOrders.deletedAt), gte(salesOrders.soldAt, from), extra))
     .groupBy(dsql`1`)
     .orderBy(dsql`1`);
   const out: { month: string; total: number }[] = [];
@@ -129,7 +133,8 @@ export async function businessRoutes(app: FastifyInstance) {
   app.get("/api/dashboard", async (req) => {
     const ctx = requireCtx(req);
     authorize(ctx, "dashboard.view");
-    return dashboardKpis(ctx);
+    const { branchId } = parse(z.object({ branchId: z.string().uuid().optional() }), req.query);
+    return dashboardKpis(ctx, branchId);
   });
 
   /* CRM */
@@ -257,8 +262,8 @@ export async function businessRoutes(app: FastifyInstance) {
   app.get("/api/sales/orders", async (req) => {
     const ctx = requireCtx(req);
     authorize(ctx, "sales.view");
-    const q = parse(pageQuery, req.query);
-    const where = and(eq(salesOrders.tenantId, ctx.tenant.id), isNull(salesOrders.deletedAt), q.q ? ilike(salesOrders.number, `%${q.q}%`) : undefined);
+    const q = parse(pageQuery.extend({ branchId: z.string().uuid().optional() }), req.query);
+    const where = and(eq(salesOrders.tenantId, ctx.tenant.id), isNull(salesOrders.deletedAt), branchCondition(ctx, salesOrders.branchId, q.branchId), q.q ? ilike(salesOrders.number, `%${q.q}%`) : undefined);
     const items = await db.select({ o: salesOrders, customer: customers.name }).from(salesOrders).leftJoin(customers, eq(customers.id, salesOrders.customerId))
       .where(where).orderBy(desc(salesOrders.soldAt)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
     const [{ n }] = await db.select({ n: count() }).from(salesOrders).where(where);
@@ -272,10 +277,12 @@ export async function businessRoutes(app: FastifyInstance) {
     const body = parse(
       z.object({
         customerId: z.string().uuid().optional(),
+        branchId: z.string().uuid().nullable().optional(),
         lines: z.array(z.object({ productId: z.string().uuid(), quantity: z.number().int().min(1).max(1e6) })).min(1).max(100),
       }),
       req.body,
     );
+    const branchId = await resolveBranchForWrite(ctx, body.branchId);
     return db.transaction(async (tx) => {
       if (body.customerId) {
         const [c] = await tx.select({ id: customers.id }).from(customers).where(and(eq(customers.id, body.customerId), eq(customers.tenantId, ctx.tenant.id), isNull(customers.deletedAt)));
@@ -291,7 +298,7 @@ export async function businessRoutes(app: FastifyInstance) {
       }
       const [{ n }] = await tx.select({ n: count() }).from(salesOrders).where(eq(salesOrders.tenantId, ctx.tenant.id));
       const total = Math.round(lines.reduce((s, l) => s + l.total, 0) * 100) / 100;
-      const [o] = await tx.insert(salesOrders).values({ tenantId: ctx.tenant.id, number: `V-${String(n + 1).padStart(5, "0")}`, customerId: body.customerId ?? null, lines, total, createdBy: ctx.membership.id }).returning();
+      const [o] = await tx.insert(salesOrders).values({ tenantId: ctx.tenant.id, number: `V-${String(n + 1).padStart(5, "0")}`, customerId: body.customerId ?? null, branchId, lines, total, createdBy: ctx.membership.id }).returning();
       for (const l of lines) await tx.insert(stockMovements).values({ tenantId: ctx.tenant.id, productId: l.productId, delta: -l.quantity, reason: `Venda ${o.number}`, refType: "sale", refId: o.id, createdBy: ctx.membership.id });
       await audit({ ...auditBase(ctx), action: "sale.created", entityType: "sale", entityId: o.id, summary: `Venda ${o.number} registada (${total}).` }, tx);
       return o;
@@ -303,7 +310,7 @@ export async function businessRoutes(app: FastifyInstance) {
     authorize(ctx, "sales.cancel");
     const { id } = parse(uuidParam, req.params);
     return db.transaction(async (tx) => {
-      const [o] = await tx.select().from(salesOrders).where(and(eq(salesOrders.id, id), eq(salesOrders.tenantId, ctx.tenant.id), eq(salesOrders.status, "confirmed"))).for("update");
+      const [o] = await tx.select().from(salesOrders).where(and(eq(salesOrders.id, id), eq(salesOrders.tenantId, ctx.tenant.id), eq(salesOrders.status, "confirmed"), branchCondition(ctx, salesOrders.branchId))).for("update");
       if (!o) throw notFound();
       for (const l of o.lines) {
         await tx.update(products).set({ stockQty: dsql`${products.stockQty} + ${l.quantity}` }).where(and(eq(products.id, l.productId), eq(products.tenantId, ctx.tenant.id)));
@@ -319,9 +326,10 @@ export async function businessRoutes(app: FastifyInstance) {
   app.get("/api/finance/transactions", async (req) => {
     const ctx = requireCtx(req);
     authorize(ctx, "finance.view");
-    const q = parse(pageQuery.extend({ kind: z.enum(["income", "expense"]).optional(), status: z.enum(["pending_approval", "approved", "rejected"]).optional() }), req.query);
+    const q = parse(pageQuery.extend({ kind: z.enum(["income", "expense"]).optional(), status: z.enum(["pending_approval", "approved", "rejected"]).optional(), branchId: z.string().uuid().optional() }), req.query);
     const where = and(
       eq(financeTransactions.tenantId, ctx.tenant.id),
+      branchCondition(ctx, financeTransactions.branchId, q.branchId),
       isNull(financeTransactions.deletedAt),
       q.kind ? eq(financeTransactions.kind, q.kind) : undefined,
       q.status ? eq(financeTransactions.status, q.status) : undefined,
@@ -343,7 +351,7 @@ export async function businessRoutes(app: FastifyInstance) {
     authorize(ctx, "finance.approve");
     const { id } = parse(uuidParam, req.params);
     const { decision } = parse(z.object({ decision: z.enum(["approve", "reject"]) }), req.body);
-    const [t] = await db.select().from(financeTransactions).where(and(eq(financeTransactions.id, id), eq(financeTransactions.tenantId, ctx.tenant.id), eq(financeTransactions.status, "pending_approval"), isNull(financeTransactions.deletedAt)));
+    const [t] = await db.select().from(financeTransactions).where(and(eq(financeTransactions.id, id), eq(financeTransactions.tenantId, ctx.tenant.id), eq(financeTransactions.status, "pending_approval"), isNull(financeTransactions.deletedAt), branchCondition(ctx, financeTransactions.branchId)));
     if (!t) throw notFound();
     // Segregação de funções: quem regista não aprova.
     if (t.createdBy === ctx.membership.id) throw forbidden("Não pode aprovar uma despesa registada por si (segregação de funções).", "SEGREGATION_OF_DUTIES");
@@ -356,7 +364,7 @@ export async function businessRoutes(app: FastifyInstance) {
     const ctx = requireCtx(req);
     authorize(ctx, "finance.delete");
     const { id } = parse(uuidParam, req.params);
-    const [t] = await db.update(financeTransactions).set({ deletedAt: new Date() }).where(and(eq(financeTransactions.id, id), eq(financeTransactions.tenantId, ctx.tenant.id), isNull(financeTransactions.deletedAt))).returning();
+    const [t] = await db.update(financeTransactions).set({ deletedAt: new Date() }).where(and(eq(financeTransactions.id, id), eq(financeTransactions.tenantId, ctx.tenant.id), isNull(financeTransactions.deletedAt), branchCondition(ctx, financeTransactions.branchId))).returning();
     if (!t) throw notFound();
     await audit({ ...auditBase(ctx), action: "finance.deleted", entityType: "finance_transaction", entityId: id, summary: `Movimento ${t.category} movido para a lixeira (retenção legal aplicável).` });
     return { ok: true };

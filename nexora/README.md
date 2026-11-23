@@ -21,7 +21,7 @@ Plataforma web **multiempresa**, **modular** e **assistida por IA** para PME, im
 | Módulos de negócio | Clientes (CRM), Stock (com movimentos e ajustes), Vendas (baixa de stock transacional), Finanças (aprovação com segregação) — nomes provisórios |
 | IA | Camada independente do fornecedor (local determinístico ou Claude via `ANTHROPIC_API_KEY`), políticas por empresa (restrito/personalizado/geral, autonomia, módulos), ferramentas em *allowlist* com as permissões do utilizador, **aprovação humana** para ações sensíveis (dupla opcional), idempotência, créditos com bloqueio isolado, previsões e simulações explicáveis, alertas inteligentes, voz (Web Speech API) e PT/EN |
 | Governação | Auditoria **encadeada por hash** com verificação, notificações, exportação CSV/JSON/XLSX/PDF com link temporário, documentos privados (local/S3) de funcionários e clientes, faturas em PDF, lixeira recuperável (30 dias, configurável), retenção legal de registos financeiros, acesso de suporte excecional (autorizado pela empresa, com prazo e âmbito) |
-| Empresa | Unidades/filiais, preferências de notificação (canais, silenciar alertas, horário de silêncio), alertas configuráveis (stock, despesas anormais, queda de vendas), retenção legal (*legal hold*), anonimização de ex-funcionários, guia de primeiros passos |
+| Empresa | Unidades/filiais com **âmbito por unidade** (utilizadores restritos só veem e registam funcionários, vendas e finanças das suas unidades — também no dashboard, IA, pesquisa, exportação e documentos), preferências de notificação (canais, silenciar alertas, horário de silêncio), alertas configuráveis (stock, despesas anormais, queda de vendas), retenção legal (*legal hold*), anonimização de ex-funcionários, guia de primeiros passos |
 | Operação | Antivírus ClamAV nos uploads (opcional), backups encriptados com **teste de restauro automático**, métricas Prometheus, e-mail SMTP, bloqueio automático de IP após falhas de autenticação |
 | Portal Nexora | Login separado (2FA), métricas agregadas, empresas (só metadados), planos/preços/limites, catálogo dos 18 módulos, parâmetros globais, reconciliação de pagamentos, suporte, auditoria |
 
@@ -65,7 +65,7 @@ Repor a base local: `pnpm db:reset` (proibido em produção).
 
 ```bash
 pnpm typecheck   # TypeScript strict (api + web)
-pnpm test        # 64 testes: unitários + integração em PostgreSQL real (base nexora_test)
+pnpm test        # 68 testes: unitários + integração em PostgreSQL real (base nexora_test)
 pnpm build       # build da API e da web
 node tests/e2e/smoke.cjs   # E2E no navegador (com `pnpm dev` + seed; requer `npm i -g playwright && npx playwright install chromium`)
 ```

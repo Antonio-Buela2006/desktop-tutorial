@@ -16,7 +16,7 @@ import {
   users,
 } from "../db/schema.js";
 import { audit } from "../core/audit.js";
-import { auditBase, authorize, can, requireCtx, type Ctx } from "../core/context.js";
+import { auditBase, authorize, branchCondition, can, requireCtx, resolveBranchForWrite, type Ctx } from "../core/context.js";
 import { randomToken, sha256, verifyPassword } from "../core/crypto.js";
 import { AppError, badRequest, forbidden, notFound } from "../core/errors.js";
 import { pageQuery, parse, uuidParam } from "../core/http.js";
@@ -175,6 +175,24 @@ export async function companyRoutes(app: FastifyInstance) {
     return { roles: r, overrides: o, level: m.level };
   });
 
+  /** Âmbito por unidade de um utilizador (vazio = todas). Administradores nunca são restringidos. */
+  app.put("/api/company/users/:id/branches", async (req) => {
+    const ctx = requireCtx(req);
+    authorize(ctx, "users.edit");
+    const { id } = parse(uuidParam, req.params);
+    const { branchIds } = parse(z.object({ branchIds: z.array(z.string().uuid()).max(50) }), req.body);
+    const m = await loadMember(ctx, id);
+    if (m.level !== "member") throw badRequest("Administradores não são restringidos por unidade.");
+    const { branches } = await import("../db/schema.js");
+    const valid = branchIds.length ? await db.select({ id: branches.id }).from(branches).where(and(eq(branches.tenantId, ctx.tenant.id), inArray(branches.id, branchIds))) : [];
+    if (valid.length !== new Set(branchIds).size) throw badRequest("Unidade inválida.");
+    // Um gestor restringido não pode alargar o âmbito de outro utilizador para além do seu.
+    if (ctx.branchScope && (branchIds.length === 0 || branchIds.some((b) => !ctx.branchScope!.includes(b)))) throw forbidden("Não pode atribuir unidades fora do seu âmbito.");
+    await db.update(memberships).set({ branchIds: [...new Set(branchIds)] }).where(eq(memberships.id, m.id));
+    await audit({ ...auditBase(ctx), action: "user.branches_changed", entityType: "membership", entityId: m.id, summary: branchIds.length ? `Acesso restringido a ${branchIds.length} unidade(s).` : "Acesso a todas as unidades.", metadata: { before: m.branchIds, after: branchIds } });
+    return { ok: true };
+  });
+
   /** Saída/desativação: revoga acesso imediatamente, preserva histórico e liberta a vaga. */
   app.post("/api/company/users/:id/disable", async (req) => {
     const ctx = requireCtx(req);
@@ -261,7 +279,7 @@ export async function companyRoutes(app: FastifyInstance) {
     const where = and(
       eq(employees.tenantId, ctx.tenant.id),
       isNull(employees.deletedAt),
-      q.branchId ? eq(employees.branchId, q.branchId) : undefined,
+      branchCondition(ctx, employees.branchId, q.branchId),
       q.status === "all" ? undefined : eq(employees.status, q.status),
       q.q ? or(ilike(employees.fullName, `%${q.q}%`), ilike(employees.department, `%${q.q}%`), ilike(employees.jobTitle, `%${q.q}%`)) : undefined,
     );
@@ -282,9 +300,9 @@ export async function companyRoutes(app: FastifyInstance) {
     authorize(ctx, "employees.create");
     const body = parse(employeeBody, req.body);
     if (body.salary !== undefined && !can(ctx, "employees.view_salary")) throw forbidden("Sem permissão para registar dados salariais.");
-    await assertBranch(ctx, body.branchId);
+    const branchId = await resolveBranchForWrite(ctx, body.branchId);
     await assertCapacity(ctx.tenant.id, "employees");
-    const [e] = await db.insert(employees).values({ ...body, tenantId: ctx.tenant.id }).returning();
+    const [e] = await db.insert(employees).values({ ...body, branchId, tenantId: ctx.tenant.id }).returning();
     await audit({ ...auditBase(ctx), action: "employee.created", entityType: "employee", entityId: e.id, summary: `Funcionário ${e.fullName} registado.` });
     return e;
   });
@@ -295,8 +313,8 @@ export async function companyRoutes(app: FastifyInstance) {
     const { id } = parse(uuidParam, req.params);
     const body = parse(employeeBody.partial(), req.body);
     if (body.salary !== undefined && !can(ctx, "employees.view_salary")) throw forbidden("Sem permissão para alterar dados salariais.");
-    await assertBranch(ctx, body.branchId);
-    const [e] = await db.update(employees).set(body).where(and(eq(employees.id, id), eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt))).returning();
+    if (body.branchId !== undefined) body.branchId = await resolveBranchForWrite(ctx, body.branchId);
+    const [e] = await db.update(employees).set(body).where(and(eq(employees.id, id), eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt), branchCondition(ctx, employees.branchId))).returning();
     if (!e) throw notFound();
     await audit({ ...auditBase(ctx), action: "employee.updated", entityType: "employee", entityId: id, summary: `Funcionário ${e.fullName} atualizado.`, metadata: { fields: Object.keys(body) } });
     return e;
@@ -308,7 +326,7 @@ export async function companyRoutes(app: FastifyInstance) {
     authorize(ctx, "employees.offboard");
     const { id } = parse(uuidParam, req.params);
     const { exitDate } = parse(z.object({ exitDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }), req.body);
-    const [e] = await db.update(employees).set({ status: "exited", exitDate }).where(and(eq(employees.id, id), eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt))).returning();
+    const [e] = await db.update(employees).set({ status: "exited", exitDate }).where(and(eq(employees.id, id), eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt), branchCondition(ctx, employees.branchId))).returning();
     if (!e) throw notFound();
     const [acct] = await db.select().from(memberships).where(and(eq(memberships.tenantId, ctx.tenant.id), eq(memberships.employeeId, id), eq(memberships.status, "active")));
     if (acct) {
@@ -323,7 +341,7 @@ export async function companyRoutes(app: FastifyInstance) {
     const ctx = requireCtx(req);
     authorize(ctx, "employees.delete");
     const { id } = parse(uuidParam, req.params);
-    const [e] = await db.update(employees).set({ deletedAt: new Date() }).where(and(eq(employees.id, id), eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt))).returning();
+    const [e] = await db.update(employees).set({ deletedAt: new Date() }).where(and(eq(employees.id, id), eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt), branchCondition(ctx, employees.branchId))).returning();
     if (!e) throw notFound();
     await audit({ ...auditBase(ctx), action: "employee.deleted", entityType: "employee", entityId: id, summary: `Funcionário ${e.fullName} movido para a lixeira.` });
     return { ok: true };
@@ -420,21 +438,13 @@ export async function companyRoutes(app: FastifyInstance) {
       results.push(...r.map((x) => ({ type: "Produto", id: x.id, title: `${x.sku} · ${x.name}`, link: `/app/products?highlight=${x.id}` })));
     }
     if (can(ctx, "employees.view")) {
-      const r = await db.select({ id: employees.id, name: employees.fullName }).from(employees).where(and(eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt), ilike(employees.fullName, like))).limit(5);
+      const r = await db.select({ id: employees.id, name: employees.fullName }).from(employees).where(and(eq(employees.tenantId, ctx.tenant.id), isNull(employees.deletedAt), branchCondition(ctx, employees.branchId), ilike(employees.fullName, like))).limit(5);
       results.push(...r.map((x) => ({ type: "Funcionário", id: x.id, title: x.name, link: `/app/employees?highlight=${x.id}` })));
     }
     return { results };
   });
 
   void dsql;
-}
-
-/** A unidade indicada tem de pertencer ao tenant da sessão. */
-async function assertBranch(ctx: Ctx, branchId: string | null | undefined) {
-  if (!branchId) return;
-  const { branches } = await import("../db/schema.js");
-  const [b] = await db.select({ id: branches.id }).from(branches).where(and(eq(branches.id, branchId), eq(branches.tenantId, ctx.tenant.id)));
-  if (!b) throw badRequest("Unidade inválida.");
 }
 
 export async function disableMembership(ctx: Ctx, membershipId: string, summary: string) {

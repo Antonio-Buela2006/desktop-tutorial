@@ -48,7 +48,7 @@ export function useAction<V = any, R = any>(fn: (v: V) => Promise<R>, invalidate
 export type Me = {
   user: { id: string; name: string; email: string; locale: string; totpEnabled: boolean };
   tenant: { id: string; name: string; isDemo: boolean; currency: string; settings: any };
-  membership: { id: string; level: "primary_admin" | "secondary_admin" | "member" };
+  membership: { id: string; level: "primary_admin" | "secondary_admin" | "member"; branchScope: string[] | null };
   permissions: string[];
   modules: string[];
   subscription: { state: string; caps: { read: boolean; write: boolean; export: boolean; billing: boolean }; plan: { code: string; name: string }; trialEndsAt: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean };

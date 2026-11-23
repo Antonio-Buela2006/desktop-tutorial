@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 — 2026-11-23
+- Âmbito por unidade: vendas e finanças passam a ter unidade, e os utilizadores podem ser restringidos a unidades.
+- O âmbito é aplicado no servidor em listas, criação, dashboard, IA (previsões e simulações), pesquisa, exportação e documentos.
+- Filtros por unidade no dashboard, vendas e finanças.
+- 68 testes.
+
 ## 0.3.0 — 2026-11-23
 - Preferências de notificação por utilizador: e-mail, silenciar tipos de alerta e horário de silêncio. Segurança e faturação não podem ser silenciadas; os e-mails já não se repetem.
 - Alertas inteligentes configuráveis: stock/rutura, despesas anormais com multiplicador, queda de vendas projetada e e-mail para alertas críticos.

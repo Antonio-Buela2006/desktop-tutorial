@@ -164,6 +164,8 @@ export const memberships = pgTable(
     // active | disabled
     status: text("status").notNull().default("active"),
     employeeId: uuid("employee_id"),
+    // Âmbito por unidade: vazio = todas as unidades; caso contrário só vê/cria dados destas unidades
+    branchIds: uuid("branch_ids").array().notNull().default([]),
     createdAt: createdAt(),
     disabledAt: ts("disabled_at"),
   },
@@ -633,6 +635,7 @@ export const salesOrders = pgTable(
     tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
     number: text("number").notNull(),
     customerId: uuid("customer_id").references(() => customers.id),
+    branchId: uuid("branch_id"),
     lines: jsonb("lines").$type<SaleLine[]>().notNull(),
     total: money("total").notNull(),
     status: text("status").notNull().default("confirmed"), // confirmed | canceled
@@ -654,6 +657,7 @@ export const financeTransactions = pgTable(
     description: text("description").notNull().default(""),
     amount: money("amount").notNull(),
     occurredOn: date("occurred_on").notNull(),
+    branchId: uuid("branch_id"),
     // pending_approval | approved | rejected
     status: text("status").notNull().default("approved"),
     createdBy: uuid("created_by"),

@@ -7,8 +7,8 @@
 import { and, asc, eq, gte, ilike, isNull, lte, sum } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
-import { customers, financeTransactions, products } from "../db/schema.js";
-import { authorize, type Ctx } from "../core/context.js";
+import { customers, financeTransactions, products, salesOrders } from "../db/schema.js";
+import { authorize, branchCondition, type Ctx } from "../core/context.js";
 import { adjustStock, createCustomer, createFinanceTx, customerBody, dashboardKpis, monthlySales } from "../modules/business.routes.js";
 import { linearForecast, simulatePriceChange } from "./predict.js";
 
@@ -83,7 +83,7 @@ export const TOOLS: AITool[] = [
     schema: z.object({ months: z.number().int().min(1).max(6).default(3) }),
     jsonSchema: { type: "object", properties: { months: { type: "integer", minimum: 1, maximum: 6 } }, additionalProperties: false },
     run: async (ctx, i) => {
-      const hist = (await monthlySales(ctx.tenant.id, 12)).filter((h, idx, arr) => h.total > 0 || idx >= arr.findIndex((x) => x.total > 0));
+      const hist = (await monthlySales(ctx.tenant.id, 12, branchCondition(ctx, salesOrders.branchId))).filter((h, idx, arr) => h.total > 0 || idx >= arr.findIndex((x) => x.total > 0));
       // exclui o mês corrente (incompleto) do treino
       const train = hist.slice(0, -1).map((h) => ({ period: h.month, value: h.total }));
       const months = i.months ?? 3;
@@ -101,11 +101,11 @@ export const TOOLS: AITool[] = [
     schema: z.object({ pricePct: z.number().min(-50).max(100), costPct: z.number().min(-50).max(100).default(0) }),
     jsonSchema: { type: "object", properties: { pricePct: { type: "number" }, costPct: { type: "number" } }, required: ["pricePct"], additionalProperties: false },
     run: async (ctx, i) => {
-      const hist = await monthlySales(ctx.tenant.id, 2);
+      const hist = await monthlySales(ctx.tenant.id, 2, branchCondition(ctx, salesOrders.branchId));
       const revenue = hist[0].total || hist[1].total;
       const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 1)).toISOString().slice(0, 10);
       const [c] = await db.select({ total: sum(financeTransactions.amount) }).from(financeTransactions)
-        .where(and(eq(financeTransactions.tenantId, ctx.tenant.id), eq(financeTransactions.kind, "expense"), isNull(financeTransactions.deletedAt), gte(financeTransactions.occurredOn, monthStart)));
+        .where(and(eq(financeTransactions.tenantId, ctx.tenant.id), eq(financeTransactions.kind, "expense"), isNull(financeTransactions.deletedAt), gte(financeTransactions.occurredOn, monthStart), branchCondition(ctx, financeTransactions.branchId)));
       return simulatePriceChange({ revenue, cost: Number(c.total ?? 0) / 2 || revenue * 0.7 }, i.pricePct, i.costPct ?? 0);
     },
   },

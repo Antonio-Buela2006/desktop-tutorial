@@ -21,7 +21,7 @@ const B0 = process.env.BASE_URL || "http://localhost:5173";
   }
   // fluxo de venda
   await page.goto(B + "/app/sales"); await page.click("text=Nova venda");
-  await page.selectOption("form select >> nth=1", { index: 1 });
+  await page.locator("form select", { has: page.locator("option", { hasText: "SKU-" }) }).selectOption({ index: 1 });
   await page.click("button:has-text('Registar venda')"); await page.waitForSelector("text=Venda registada");
   // IA
   await page.goto(B + "/app/ai"); await page.click("text=Previsão de vendas"); await page.waitForSelector("text=intervalo de 80%", { timeout: 15000 });

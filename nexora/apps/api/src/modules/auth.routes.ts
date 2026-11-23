@@ -157,7 +157,7 @@ export async function authRoutes(app: FastifyInstance) {
     return {
       user: { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email, locale: ctx.user.locale, totpEnabled: ctx.user.totpEnabled },
       tenant: { id: ctx.tenant.id, name: ctx.tenant.name, isDemo: ctx.tenant.isDemo, currency: ctx.tenant.currency, settings: ctx.tenant.settings },
-      membership: { id: ctx.membership.id, level: ctx.membership.level },
+      membership: { id: ctx.membership.id, level: ctx.membership.level, branchScope: ctx.branchScope },
       permissions: [...ctx.permissions].sort(),
       modules: [...ctx.modules].sort(),
       subscription: {

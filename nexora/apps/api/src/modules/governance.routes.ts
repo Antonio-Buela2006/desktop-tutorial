@@ -16,7 +16,7 @@ import {
   supportAccessGrants,
 } from "../db/schema.js";
 import { audit, verifyAuditChain } from "../core/audit.js";
-import { auditBase, authorize, can, requireCtx, type Ctx } from "../core/context.js";
+import { auditBase, authorize, branchCondition, can, requireCtx, type Ctx } from "../core/context.js";
 import { randomToken, sha256 } from "../core/crypto.js";
 import { badRequest, forbidden, notFound } from "../core/errors.js";
 import { pageQuery, parse, toCsv, uuidParam } from "../core/http.js";
@@ -43,6 +43,11 @@ async function datasetRows(ctx: Ctx, dataset: string) {
   const t = DATASET_TABLES[dataset];
   const conds = [eq(t.tenantId, ctx.tenant.id)];
   if (t.deletedAt) conds.push(isNull(t.deletedAt));
+  // Âmbito por unidade nos conjuntos que têm unidade
+  if (t.branchId) {
+    const c = branchCondition(ctx, t.branchId);
+    if (c) conds.push(c);
+  }
   let rows: Record<string, unknown>[] = await db.select().from(t).where(and(...conds));
   if (dataset === "employees" && !can(ctx, "employees.view_salary")) rows = rows.map(({ salary: _s, ...r }) => r);
   return rows.map(({ tenantId: _t, ...r }) => r);

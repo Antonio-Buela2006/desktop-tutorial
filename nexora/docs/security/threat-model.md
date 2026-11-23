@@ -16,6 +16,7 @@ faturação, configuração comercial, registos de auditoria, capacidade de aç�
 | Acesso indevido da equipa Nexora | técnicos curiosos | sem acesso por omissão; concessão temporária autorizada pela empresa, por âmbito, auditada e visível para o cliente | — |
 | Injeção SQL / XSS | inputs | ORM parametrizado, validação Zod, React escapa output, CSV com proteção contra fórmulas, cabeçalhos helmet/nginx | — |
 | **D**enial of service / abuso de API | força bruta, scraping | rate limit global (300/min/IP) e estrito em login/2FA/IA/webhooks; paginação máx. 100 | — |
+| Acesso a dados de outra unidade | utilizador restrito manipula `branchId` | `branchCondition`/`resolveBranchForWrite` no servidor; unidades validadas contra o tenant; gestores restritos não alargam o âmbito de outros | `branch-scope.test.ts` |
 | **E**levation of privilege | chamada direta a endpoints, admin secundário | `authorize()` em todas as rotas; permissões admin só para administradores; secundários não concedem fora do seu âmbito nem gerem administradores; segregação de funções | `rbac.test.ts` |
 | Exposição de segredos | repositório | `.env` ignorado, `.env.example` sem segredos, TOTP encriptado AES-256-GCM em repouso | — |
 

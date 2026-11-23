@@ -151,6 +151,7 @@ export function UsersPage() {
           { key: "name", header: "Nome", render: (r: any) => <div><p className="font-medium">{r.user.name}</p><p className="text-xs muted">{r.user.email}</p></div> },
           { key: "level", header: "Nível", render: (r: any) => <Badge tone={r.level === "member" ? "gray" : "blue"}>{levelLabel[r.level]}</Badge> },
           { key: "roles", header: "Funções", render: (r: any) => r.level === "primary_admin" ? <span className="text-xs muted">Todas as permissões</span> : r.roles.map((x: any) => <span key={x.roleId} className="mr-1"><Badge>{x.name}{x.validUntil ? ` até ${fmtDate(x.validUntil)}` : ""}</Badge></span>) },
+          { key: "branches", header: "Unidades", render: (r: any) => (r.branchIds?.length ? <Badge tone="amber">{r.branchIds.length} unidade(s)</Badge> : <span className="text-xs muted">Todas</span>) },
           { key: "2fa", header: "2FA", render: (r: any) => (r.user.totpEnabled ? <Badge tone="green">Ativo</Badge> : <Badge tone="amber">Inativo</Badge>) },
           { key: "status", header: "Estado", render: (r: any) => (r.status === "active" ? <Badge tone="green">Ativo</Badge> : <Badge>Desativado</Badge>) },
           {
@@ -214,12 +215,22 @@ function AccessEditor({ member, roles, onClose, onSaved }: { member: any; roles:
     if (cur.data && !state) setState({ roles: cur.data.roles.map((r: any) => ({ roleId: r.roleId, validUntil: r.validUntil?.slice(0, 10) ?? "" })), overrides: cur.data.overrides.map((o: any) => ({ permission: o.permission, effect: o.effect, validUntil: o.validUntil?.slice(0, 10) ?? "" })) });
   }, [cur.data, state]);
   const save = useAction((v: any) => put(`/api/company/users/${member.id}/access`, v), [["users"]]);
+  const saveBranches = useAction((v: any) => put(`/api/company/users/${member.id}/branches`, v), [["users"]]);
+  const branchList = useApi<any[]>(["branches"], "/api/company/branches");
+  const [branchIds, setBranchIds] = useState<string[]>(member.branchIds ?? []);
   if (!state) return <Modal open onClose={onClose} title="Permissões"><Loading /></Modal>;
   const toDate = (d: string) => (d ? new Date(d + "T23:59:59").toISOString() : null);
   return (
     <Modal open onClose={onClose} title={`Acesso · ${member.user.name}`} wide>
       <div className="space-y-4">
-        {save.error && <ErrorText error={save.error} />}
+        {(save.error || saveBranches.error) && <ErrorText error={save.error || saveBranches.error} />}
+        {member.level === "member" && !!branchList.data?.length && (
+          <section>
+            <h3 className="mb-1 text-sm font-semibold">Unidades</h3>
+            <p className="mb-2 text-xs muted">Sem nenhuma selecionada, o utilizador vê todas. Com unidades selecionadas, só vê e regista funcionários, vendas e finanças dessas unidades.</p>
+            <div className="flex flex-wrap gap-3 text-sm">{branchList.data.map((b) => <label key={b.id} className="flex items-center gap-1"><input type="checkbox" checked={branchIds.includes(b.id)} onChange={(e) => setBranchIds(e.target.checked ? [...branchIds, b.id] : branchIds.filter((x) => x !== b.id))} />{b.name} ({b.code})</label>)}</div>
+          </section>
+        )}
         <section>
           <h3 className="mb-2 text-sm font-semibold">Funções (validade opcional para substituições temporárias)</h3>
           <div className="space-y-2">{roles.map((r) => {
@@ -246,7 +257,7 @@ function AccessEditor({ member, roles, onClose, onSaved }: { member: any; roles:
         </section>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button loading={save.isPending} onClick={async () => { await save.mutateAsync({ roles: state.roles.map((r) => ({ roleId: r.roleId, validUntil: toDate(r.validUntil) })), overrides: state.overrides.map((o) => ({ permission: o.permission, effect: o.effect, validUntil: toDate(o.validUntil) })) }); onSaved(); }}>Guardar</Button>
+          <Button loading={save.isPending || saveBranches.isPending} onClick={async () => { if (member.level === "member" && branchList.data?.length) await saveBranches.mutateAsync({ branchIds }); await save.mutateAsync({ roles: state.roles.map((r) => ({ roleId: r.roleId, validUntil: toDate(r.validUntil) })), overrides: state.overrides.map((o) => ({ permission: o.permission, effect: o.effect, validUntil: toDate(o.validUntil) })) }); onSaved(); }}>Guardar</Button>
         </div>
       </div>
     </Modal>
