@@ -614,10 +614,26 @@ export const products = pgTable(
   (t) => [uniqueIndex("products_tenant_sku").on(t.tenantId, t.sku)],
 );
 
+/**
+ * Stock por unidade. products.stock_qty mantém sempre o TOTAL da empresa;
+ * o armazém central = total − soma das unidades.
+ */
+export const stockLevels = pgTable(
+  "stock_levels",
+  {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    productId: uuid("product_id").notNull().references(() => products.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    qty: integer("qty").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.productId, t.branchId] }), index("stock_levels_tenant").on(t.tenantId)],
+);
+
 export const stockMovements = pgTable("stock_movements", {
   id: id(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   productId: uuid("product_id").notNull().references(() => products.id),
+  branchId: uuid("branch_id"), // null = armazém central
   delta: integer("delta").notNull(),
   reason: text("reason").notNull(),
   refType: text("ref_type"),

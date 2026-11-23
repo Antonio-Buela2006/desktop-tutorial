@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 — 2026-11-23
+- Stock por unidade, com armazém central e transferências; o total da empresa mantém-se consistente.
+- As vendas de uma unidade só consomem o stock dessa unidade; as anulações repõem-no na mesma localização.
+- Ajustes por localização; utilizadores restritos não movimentam o armazém central.
+- Numeração das vendas sem corridas entre vendas simultâneas (lock por empresa).
+- 72 testes.
+
 ## 0.4.0 — 2026-11-23
 - Âmbito por unidade: vendas e finanças passam a ter unidade, e os utilizadores podem ser restringidos a unidades.
 - O âmbito é aplicado no servidor em listas, criação, dashboard, IA (previsões e simulações), pesquisa, exportação e documentos.

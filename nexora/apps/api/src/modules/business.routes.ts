@@ -4,10 +4,12 @@
  * módulo contratado e estado da subscrição através de `authorize`.
  */
 import type { FastifyInstance } from "fastify";
-import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql as dsql, sum, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql as dsql, sum, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, type DbOrTx } from "../db/client.js";
-import { customers, employees, financeTransactions, products, salesOrders, stockMovements, type SaleLine } from "../db/schema.js";
+import { customers, employees, financeTransactions, products, salesOrders, stockLevels, stockMovements, type SaleLine } from "../db/schema.js";
+import { applyMove, centralQty, lockProduct, transfer } from "../core/inventory.js";
+import { randomUUID } from "node:crypto";
 import { audit } from "../core/audit.js";
 import { auditBase, authorize, branchCondition, can, requireCtx, resolveBranchForWrite, type Ctx } from "../core/context.js";
 import { AppError, badRequest, forbidden, notFound } from "../core/errors.js";
@@ -33,15 +35,15 @@ export async function createCustomer(ctx: Ctx, input: z.infer<typeof customerBod
   return c;
 }
 
-export async function adjustStock(ctx: Ctx, productId: string, delta: number, reason: string, actor: "user" | "ai" = "user") {
+/** Ajuste de stock numa localização (unidade ou armazém central). Utilizadores restritos só ajustam as suas unidades. */
+export async function adjustStock(ctx: Ctx, productId: string, delta: number, reason: string, actor: "user" | "ai" = "user", branchIdInput?: string | null) {
+  const branchId = await resolveBranchForWrite(ctx, branchIdInput);
   return db.transaction(async (tx) => {
-    const [p] = await tx.select().from(products).where(and(eq(products.id, productId), eq(products.tenantId, ctx.tenant.id), isNull(products.deletedAt))).for("update");
-    if (!p) throw notFound();
-    if (p.stockQty + delta < 0) throw badRequest("O stock não pode ficar negativo.");
-    const [u] = await tx.update(products).set({ stockQty: p.stockQty + delta }).where(eq(products.id, p.id)).returning();
-    await tx.insert(stockMovements).values({ tenantId: ctx.tenant.id, productId: p.id, delta, reason, refType: "adjustment", createdBy: ctx.membership.id });
-    await audit({ ...auditBase(ctx), actorType: actor, action: "inventory.adjusted", entityType: "product", entityId: p.id, summary: `Ajuste de stock ${delta > 0 ? "+" : ""}${delta} em ${p.name}: ${reason}`, metadata: { before: p.stockQty, after: u.stockQty } }, tx);
-    return u;
+    const p = await lockProduct(tx, ctx.tenant.id, productId);
+    const before = p.stockQty;
+    await applyMove(tx, { tenantId: ctx.tenant.id, product: p, branchId, delta, reason, refType: "adjustment", createdBy: ctx.membership.id });
+    await audit({ ...auditBase(ctx), actorType: actor, action: "inventory.adjusted", entityType: "product", entityId: p.id, summary: `Ajuste de stock ${delta > 0 ? "+" : ""}${delta} em ${p.name} (${branchId ? "unidade" : "armazém central"}): ${reason}`, metadata: { before, after: p.stockQty, branchId } }, tx);
+    return p;
   });
 }
 
@@ -197,7 +199,16 @@ export async function businessRoutes(app: FastifyInstance) {
     );
     const items = await db.select().from(products).where(where).orderBy(asc(products.name)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
     const [{ n }] = await db.select({ n: count() }).from(products).where(where);
-    return { items, total: n };
+    const levels = items.length ? await db.select().from(stockLevels).where(and(eq(stockLevels.tenantId, ctx.tenant.id), inArray(stockLevels.productId, items.map((i) => i.id)))) : [];
+    return {
+      items: items.map((p) => {
+        const mine = levels.filter((l) => l.productId === p.id);
+        // Utilizadores restritos veem o stock das suas unidades (o total da empresa continua visível).
+        const visible = ctx.branchScope ? mine.filter((l) => ctx.branchScope!.includes(l.branchId)) : mine;
+        return { ...p, centralQty: centralQty(p, mine), levels: visible.map((l) => ({ branchId: l.branchId, qty: l.qty })) };
+      }),
+      total: n,
+    };
   });
 
   app.post("/api/inventory/products", async (req) => {
@@ -243,8 +254,28 @@ export async function businessRoutes(app: FastifyInstance) {
     const ctx = requireCtx(req);
     authorize(ctx, "inventory.adjust");
     const { id } = parse(uuidParam, req.params);
-    const body = parse(z.object({ delta: z.number().int().min(-1e6).max(1e6).refine((v) => v !== 0, "O ajuste não pode ser zero."), reason: z.string().trim().min(3).max(200) }), req.body);
-    return adjustStock(ctx, id, body.delta, body.reason);
+    const body = parse(z.object({ delta: z.number().int().min(-1e6).max(1e6).refine((v) => v !== 0, "O ajuste não pode ser zero."), reason: z.string().trim().min(3).max(200), branchId: z.string().uuid().nullable().optional() }), req.body);
+    return adjustStock(ctx, id, body.delta, body.reason, "user", body.branchId);
+  });
+
+  /** Transferência de stock entre o armazém central e as unidades (o total da empresa mantém-se). */
+  app.post("/api/inventory/transfers", async (req) => {
+    const ctx = requireCtx(req);
+    authorize(ctx, "inventory.adjust");
+    const body = parse(
+      z.object({ productId: z.string().uuid(), fromBranchId: z.string().uuid().nullable(), toBranchId: z.string().uuid().nullable(), quantity: z.number().int().min(1).max(1e6), reason: z.string().trim().min(3).max(200) }),
+      req.body,
+    );
+    // Utilizadores restritos não movimentam o armazém central nem unidades fora do âmbito.
+    if (ctx.branchScope && (!body.fromBranchId || !body.toBranchId)) throw forbidden("Sem acesso ao armazém central.", "BRANCH_OUT_OF_SCOPE");
+    const from = body.fromBranchId ? await resolveBranchForWrite(ctx, body.fromBranchId) : null;
+    const to = body.toBranchId ? await resolveBranchForWrite(ctx, body.toBranchId) : null;
+    return db.transaction(async (tx) => {
+      const p = await lockProduct(tx, ctx.tenant.id, body.productId);
+      await transfer(tx, ctx.tenant.id, p, from, to, body.quantity, body.reason, ctx.membership.id);
+      await audit({ ...auditBase(ctx), action: "inventory.transferred", entityType: "product", entityId: p.id, summary: `Transferência de ${body.quantity} × ${p.name}: ${from ? "unidade" : "central"} → ${to ? "unidade" : "central"} (${body.reason}).`, metadata: { from, to, quantity: body.quantity } }, tx);
+      return { ok: true };
+    });
   });
 
   app.get("/api/inventory/movements", async (req) => {
@@ -288,18 +319,22 @@ export async function businessRoutes(app: FastifyInstance) {
         const [c] = await tx.select({ id: customers.id }).from(customers).where(and(eq(customers.id, body.customerId), eq(customers.tenantId, ctx.tenant.id), isNull(customers.deletedAt)));
         if (!c) throw badRequest("Cliente inválido.");
       }
+      // Numeração sequencial por empresa sem corridas entre vendas simultâneas
+      await tx.execute(dsql`select pg_advisory_xact_lock(hashtext(${"sale:" + ctx.tenant.id}))`);
+      const [{ n }] = await tx.select({ n: count() }).from(salesOrders).where(eq(salesOrders.tenantId, ctx.tenant.id));
+      const orderId = randomUUID();
+      const number = `V-${String(n + 1).padStart(5, "0")}`;
       const lines: SaleLine[] = [];
       for (const l of body.lines) {
-        const [p] = await tx.select().from(products).where(and(eq(products.id, l.productId), eq(products.tenantId, ctx.tenant.id), isNull(products.deletedAt))).for("update");
-        if (!p) throw badRequest("Produto inválido.");
-        if (p.stockQty < l.quantity) throw new AppError(409, "INSUFFICIENT_STOCK", `Stock insuficiente para ${p.name} (disponível: ${p.stockQty}).`);
-        await tx.update(products).set({ stockQty: p.stockQty - l.quantity }).where(eq(products.id, p.id));
+        const p = await lockProduct(tx, ctx.tenant.id, l.productId).catch(() => {
+          throw badRequest("Produto inválido.");
+        });
+        // A venda dá baixa no stock da unidade da venda (ou do armazém central se não tiver unidade).
+        await applyMove(tx, { tenantId: ctx.tenant.id, product: p, branchId, delta: -l.quantity, reason: `Venda ${number}`, refType: "sale", refId: orderId, createdBy: ctx.membership.id });
         lines.push({ productId: p.id, name: p.name, quantity: l.quantity, unitPrice: p.unitPrice, total: Math.round(p.unitPrice * l.quantity * 100) / 100 });
       }
-      const [{ n }] = await tx.select({ n: count() }).from(salesOrders).where(eq(salesOrders.tenantId, ctx.tenant.id));
       const total = Math.round(lines.reduce((s, l) => s + l.total, 0) * 100) / 100;
-      const [o] = await tx.insert(salesOrders).values({ tenantId: ctx.tenant.id, number: `V-${String(n + 1).padStart(5, "0")}`, customerId: body.customerId ?? null, branchId, lines, total, createdBy: ctx.membership.id }).returning();
-      for (const l of lines) await tx.insert(stockMovements).values({ tenantId: ctx.tenant.id, productId: l.productId, delta: -l.quantity, reason: `Venda ${o.number}`, refType: "sale", refId: o.id, createdBy: ctx.membership.id });
+      const [o] = await tx.insert(salesOrders).values({ id: orderId, tenantId: ctx.tenant.id, number, customerId: body.customerId ?? null, branchId, lines, total, createdBy: ctx.membership.id }).returning();
       await audit({ ...auditBase(ctx), action: "sale.created", entityType: "sale", entityId: o.id, summary: `Venda ${o.number} registada (${total}).` }, tx);
       return o;
     });
@@ -313,8 +348,9 @@ export async function businessRoutes(app: FastifyInstance) {
       const [o] = await tx.select().from(salesOrders).where(and(eq(salesOrders.id, id), eq(salesOrders.tenantId, ctx.tenant.id), eq(salesOrders.status, "confirmed"), branchCondition(ctx, salesOrders.branchId))).for("update");
       if (!o) throw notFound();
       for (const l of o.lines) {
-        await tx.update(products).set({ stockQty: dsql`${products.stockQty} + ${l.quantity}` }).where(and(eq(products.id, l.productId), eq(products.tenantId, ctx.tenant.id)));
-        await tx.insert(stockMovements).values({ tenantId: ctx.tenant.id, productId: l.productId, delta: l.quantity, reason: `Anulação ${o.number}`, refType: "sale_cancel", refId: o.id, createdBy: ctx.membership.id });
+        const p = await lockProduct(tx, ctx.tenant.id, l.productId);
+        // Repõe o stock na mesma localização da venda
+        await applyMove(tx, { tenantId: ctx.tenant.id, product: p, branchId: o.branchId, delta: l.quantity, reason: `Anulação ${o.number}`, refType: "sale_cancel", refId: o.id, createdBy: ctx.membership.id });
       }
       await tx.update(salesOrders).set({ status: "canceled" }).where(eq(salesOrders.id, id));
       await audit({ ...auditBase(ctx), action: "sale.canceled", entityType: "sale", entityId: id, summary: `Venda ${o.number} anulada; stock reposto.` }, tx);

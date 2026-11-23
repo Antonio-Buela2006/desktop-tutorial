@@ -12,6 +12,8 @@ beforeAll(async () => {
   lda = (await t.client.post("/api/company/branches", { code: "LDA", name: "Luanda" })).body.id;
   bgl = (await t.client.post("/api/company/branches", { code: "BGL", name: "Benguela" })).body.id;
   product = (await t.client.post("/api/inventory/products", { sku: "BR-1", name: "Produto Unidade", unitPrice: 1000, initialStock: 100 })).body.id;
+  // Cada unidade vende do seu próprio stock: abastece-se primeiro a partir do armazém central
+  for (const b of [lda, bgl]) await t.client.post("/api/inventory/transfers", { productId: product, fromBranchId: null, toBranchId: b, quantity: 40, reason: "Abastecimento" });
   await t.client.post("/api/sales/orders", { branchId: bgl, lines: [{ productId: product, quantity: 1 }] });
   await t.client.post("/api/finance/transactions", { kind: "expense", category: "Renda Benguela", amount: 1000, occurredOn: "2026-11-02", branchId: bgl });
   await t.client.post("/api/company/employees", { fullName: "Trabalhador Benguela", branchId: bgl });

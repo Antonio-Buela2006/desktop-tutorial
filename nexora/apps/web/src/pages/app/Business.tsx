@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Plus, Trash2, Pencil, PackagePlus, Ban, Check, X, Paperclip } from "lucide-react";
+import { Plus, Trash2, Pencil, PackagePlus, Ban, Check, X, Paperclip, ArrowLeftRight } from "lucide-react";
 import { DocumentsModal } from "../../components/Documents";
 import { del, fmtDate, fmtDateTime, fmtMoney, fmtNum, post, put, useAction, useApi, type Me } from "../../lib/api";
 import { Alert, Badge, Button, Card, DataTable, ErrorState, ErrorText, Field, Input, Loading, Modal, PageHeader, Select, Stat, useConfirm, useToast, useUnsavedGuard } from "../../components/ui";
@@ -187,6 +187,9 @@ export function Products() {
   const list = useList("products", "/api/inventory/products", low ? { lowStock: "true" } : {});
   const [edit, setEdit] = useState<any | null>(null);
   const [adjust, setAdjust] = useState<any | null>(null);
+  const [transfer, setTransfer] = useState<any | null>(null);
+  const branches = useBranches();
+  const bName = (id: string) => branches.find((b) => b.id === id)?.code ?? "?";
   const [showMoves, setShowMoves] = useState(false);
   const { confirm, dialog } = useConfirm();
   const { toast, toastEl } = useToast();
@@ -206,12 +209,23 @@ export function Products() {
           { key: "sku", header: "SKU" },
           { key: "name", header: "Produto", render: (r: any) => <span className="font-medium">{r.name}</span> },
           { key: "unitPrice", header: "Preço", render: (r: any) => fmtMoney(r.unitPrice, cur) },
-          { key: "stockQty", header: "Stock", render: (r: any) => <Badge tone={r.stockQty <= r.reorderLevel ? "red" : "green"}>{fmtNum(r.stockQty)}</Badge> },
+          { key: "stockQty", header: "Stock", render: (r: any) => (
+            <div>
+              <Badge tone={r.stockQty <= r.reorderLevel ? "red" : "green"}>{fmtNum(r.stockQty)}</Badge>
+              {(r.levels?.length > 0 || branches.length > 0) && (
+                <p className="mt-1 text-xs muted">
+                  {!me.membership.branchScope && <>Central {fmtNum(r.centralQty)}</>}
+                  {r.levels.filter((l: any) => l.qty !== 0).map((l: any) => <span key={l.branchId}> · {bName(l.branchId)} {fmtNum(l.qty)}</span>)}
+                </p>
+              )}
+            </div>
+          ) },
           { key: "reorderLevel", header: "Repor a", render: (r: any) => fmtNum(r.reorderLevel) },
           {
             key: "a", header: "", className: "text-right", render: (r: any) => (
               <div className="flex justify-end gap-1">
                 {can(me, "inventory.adjust") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setAdjust(r)} aria-label={`Ajustar stock de ${r.name}`}><PackagePlus className="h-4 w-4" /></Button>}
+                {can(me, "inventory.adjust") && branches.length > 0 && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setTransfer(r)} aria-label={`Transferir stock de ${r.name}`}><ArrowLeftRight className="h-4 w-4" /></Button>}
                 {can(me, "inventory.edit") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setEdit(r)} aria-label={`Editar ${r.name}`}><Pencil className="h-4 w-4" /></Button>}
                 {can(me, "inventory.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label={`Eliminar ${r.name}`} onClick={async () => { if (await confirm("Eliminar produto", `${r.sku} vai para a lixeira (recuperável durante 30 dias).`)) { await remove.mutateAsync(r.id); toast("Produto movido para a lixeira."); } }}><Trash2 className="h-4 w-4" /></Button>}
               </div>
@@ -221,6 +235,7 @@ export function Products() {
       />
       <ProductForm value={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); toast("Produto guardado."); }} />
       <AdjustForm value={adjust} onClose={() => setAdjust(null)} onSaved={() => { setAdjust(null); toast("Stock ajustado."); }} />
+      {transfer && <TransferForm product={transfer} onClose={() => setTransfer(null)} onSaved={() => { setTransfer(null); toast("Transferência registada."); }} />}
       <Modal open={showMoves} onClose={() => setShowMoves(false)} title="Movimentos de stock" wide>{showMoves && <Movements />}</Modal>
       {dialog}{toastEl}
     </>
@@ -263,15 +278,51 @@ function ProductForm({ value, onClose, onSaved }: { value: any | null; onClose: 
   );
 }
 
+/** Localizações onde o utilizador pode movimentar stock: central (se não restrito) e unidades. */
+function useLocations() {
+  const me = useMeCtx();
+  const branches = useBranches();
+  return [...(me.membership.branchScope ? [] : [{ id: "", label: "Armazém central" }]), ...branches.map((b) => ({ id: b.id, label: `${b.name} (${b.code})` }))];
+}
+const qtyAt = (p: any, loc: string) => (loc ? p?.levels?.find((l: any) => l.branchId === loc)?.qty ?? 0 : p?.centralQty ?? 0);
+
+function TransferForm({ product, onClose, onSaved }: { product: any; onClose: () => void; onSaved: () => void }) {
+  const locs = useLocations();
+  const [from, setFrom] = useState(locs[0]?.id ?? "");
+  const [to, setTo] = useState(locs[1]?.id ?? "");
+  const [qty, setQty] = useState(1);
+  const [reason, setReason] = useState("");
+  const save = useAction((v: any) => post("/api/inventory/transfers", v), [["products"], ["movements"]]);
+  return (
+    <Modal open onClose={onClose} title={`Transferir stock · ${product.name}`}>
+      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); await save.mutateAsync({ productId: product.id, fromBranchId: from || null, toBranchId: to || null, quantity: qty, reason }); onSaved(); }}>
+        {save.error && <ErrorText error={save.error} />}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={`Origem (disponível: ${qtyAt(product, from)})`}><Select value={from} onChange={(e) => setFrom(e.target.value)}>{locs.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}</Select></Field>
+          <Field label="Destino"><Select value={to} onChange={(e) => setTo(e.target.value)}>{locs.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}</Select></Field>
+        </div>
+        <Field label="Quantidade"><Input type="number" min={1} max={qtyAt(product, from)} required value={qty} onChange={(e) => setQty(+e.target.value)} /></Field>
+        <Field label="Motivo"><Input required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Abastecimento, reposição…" /></Field>
+        <p className="text-xs muted">O total da empresa não muda; só a localização do stock.</p>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button disabled={from === to} loading={save.isPending}>Transferir</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
 function AdjustForm({ value, onClose, onSaved }: { value: any | null; onClose: () => void; onSaved: () => void }) {
+  const locs = useLocations();
   const [delta, setDelta] = useState(0);
   const [reason, setReason] = useState("");
+  const [loc, setLoc] = useState<string | null>(null);
+  const where = loc ?? locs[0]?.id ?? "";
   const save = useAction((v: any) => post(`/api/inventory/products/${value.id}/adjust`, v), [["products"], ["dashboard"], ["movements"]]);
   return (
     <Modal open={value !== null} onClose={onClose} title={`Ajustar stock · ${value?.name ?? ""}`}>
-      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); await save.mutateAsync({ delta: +delta, reason }); setDelta(0); setReason(""); onSaved(); }}>
+      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); await save.mutateAsync({ delta: +delta, reason, branchId: where || null }); setDelta(0); setReason(""); onSaved(); }}>
         {save.error && <ErrorText error={save.error} />}
-        <p className="text-sm">Stock atual: <strong>{value?.stockQty}</strong> → depois do ajuste: <strong>{(value?.stockQty ?? 0) + Number(delta || 0)}</strong></p>
+        {locs.length > 1 && <Field label="Localização"><Select value={where} onChange={(e) => setLoc(e.target.value)}>{locs.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}</Select></Field>}
+        <p className="text-sm">Stock nesta localização: <strong>{qtyAt(value, where)}</strong> → depois do ajuste: <strong>{qtyAt(value, where) + Number(delta || 0)}</strong></p>
         <Field label="Quantidade (+ entrada / − saída)"><Input type="number" required value={delta} onChange={(e) => setDelta(Number(e.target.value))} /></Field>
         <Field label="Motivo"><Input required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Inventário, quebra, devolução…" /></Field>
         <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Confirmar ajuste</Button></div>
@@ -331,7 +382,7 @@ function SaleForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
         {custs.data && <Field label="Cliente"><Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}><option value="">Consumidor final</option>{custs.data.items.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>}
         {lines.map((l, i) => (
           <div key={i} className="grid grid-cols-[1fr_90px_auto] items-end gap-2">
-            <Field label={i === 0 ? "Produto" : ""}><Select required value={l.productId} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, productId: e.target.value } : x)))}><option value="">Escolher…</option>{items.map((p: any) => <option key={p.id} value={p.id} disabled={p.stockQty <= 0}>{p.sku} · {p.name} ({p.stockQty} em stock)</option>)}</Select></Field>
+            <Field label={i === 0 ? "Produto" : ""}><Select required value={l.productId} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, productId: e.target.value } : x)))}><option value="">Escolher…</option>{items.map((p: any) => { const q = qtyAt(p, branchId); return <option key={p.id} value={p.id} disabled={q <= 0}>{p.sku} · {p.name} ({q} {branchId ? "na unidade" : "no central"})</option>; })}</Select></Field>
             <Field label={i === 0 ? "Qtd" : ""}><Input type="number" min={1} value={l.quantity} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, quantity: Math.max(1, +e.target.value) } : x)))} /></Field>
             <Button type="button" variant="ghost" aria-label="Remover linha" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}><X className="h-4 w-4" /></Button>
           </div>
