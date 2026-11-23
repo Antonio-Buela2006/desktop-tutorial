@@ -69,6 +69,24 @@ function SubscriptionBanner({ me }: { me: Me }) {
   );
 }
 
+/** Incidentes operacionais ativos comunicados pela equipa Nexora. */
+function IncidentBanner() {
+  const { lang } = useI18n();
+  const { data } = useApi<any[]>(["incidents-active"], "/api/incidents/active", { refetchInterval: 120_000 });
+  if (!data?.length) return null;
+  const st: Record<string, string> = { investigating: "Investigating", identified: "Identified", monitoring: "Monitoring", resolved: "Resolved" };
+  return (
+    <div className="mb-4 space-y-2">
+      {data.map((i) => (
+        <Alert key={i.id} tone={i.severity === "critical" || i.severity === "high" ? "error" : "warning"}>
+          <strong>{lang === "en" ? "Service incident" : "Incidente no serviço"}: {i.title}</strong> · {lang === "en" ? st[i.status] : i.statusLabel}
+          {i.lastUpdate?.note && <span className="block text-xs">{i.lastUpdate.note}</span>}
+        </Alert>
+      ))}
+    </div>
+  );
+}
+
 function GlobalSearch() {
   const { tr } = useI18n();
   const [q, setQ] = useState("");
@@ -212,6 +230,7 @@ export function AppLayout() {
           </div>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6">
+          <IncidentBanner />
           <SubscriptionBanner me={me} />
           <Outlet context={me} />
         </main>

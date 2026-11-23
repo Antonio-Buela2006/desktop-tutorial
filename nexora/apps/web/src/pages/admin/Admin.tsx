@@ -42,7 +42,7 @@ export function AdminLayout() {
   const qc = useQueryClient();
   if (isLoading) return <Loading />;
   if (!me) return <Navigate to="/admin/login" replace />;
-  const items = [["/admin", "Visão geral", "tenants"], ["/admin/plans", "Planos e preços", "commercial"], ["/admin/modules", "Catálogo de módulos", "commercial"], ["/admin/payments", "Pagamentos", "payments"], ["/admin/settings", "Parâmetros globais", "settings"], ["/admin/support", "Suporte", "support"], ["/admin/audit", "Auditoria", "audit"]].filter(([, , a]) => me.areas.includes(a));
+  const items = [["/admin", "Visão geral", "tenants"], ["/admin/plans", "Planos e preços", "commercial"], ["/admin/modules", "Catálogo de módulos", "commercial"], ["/admin/payments", "Pagamentos", "payments"], ["/admin/settings", "Parâmetros globais", "settings"], ["/admin/support", "Suporte", "support"], ["/admin/incidents", "Incidentes", "tenants"], ["/admin/retention", "Retenção", "tenants"], ["/admin/audit", "Auditoria", "audit"]].filter(([, , a]) => me.areas.includes(a));
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-800 bg-slate-900 text-white">
@@ -295,5 +295,103 @@ export function Admin2fa() {
         <div className="space-y-2 text-sm"><img src={setup.data.qr} alt="QR 2FA" className="h-44 w-44 bg-white p-2" />{enable.error && <ErrorText error={enable.error} />}<div className="flex gap-2"><Input value={code} onChange={(e) => setCode(e.target.value)} className="w-32" aria-label="Código" /><Button onClick={() => enable.mutate(code)}><T>Ativar</T></Button></div></div>
       )}
     </Card>
+  );
+}
+
+export function AdminRetention() {
+  const { data, isLoading, error } = useApi<any[]>(["admin-retention"], "/api/admin/retention");
+  const [purge, setPurge] = useState<any | null>(null);
+  return (
+    <>
+      <PageHeader title="Retenção de dados" subtitle="Empresas com subscrição terminada. Após o prazo de retenção, os dados pessoais são anonimizados e os operacionais eliminados; registos financeiros, vendas, faturas e auditoria são conservados." />
+      <DataTable rows={data} loading={isLoading} error={error} rowKey={(r: any) => r.tenantId} columns={[
+        { key: "name", header: "Empresa" },
+        { key: "status", header: "Estado", render: (r: any) => <Badge>{r.status}</Badge> },
+        { key: "endedAt", header: "Terminou", render: (r: any) => fmtDate(r.endedAt) },
+        { key: "dueAt", header: "Prazo de retenção", render: (r: any) => fmtDate(r.dueAt) },
+        { key: "flags", header: "", render: (r: any) => r.purgedAt ? <Badge tone="green">Executada {fmtDate(r.purgedAt)}</Badge> : r.legalHold ? <Badge tone="red">Retenção legal</Badge> : r.due ? <Badge tone="amber">Prazo cumprido</Badge> : <Badge>A decorrer</Badge> },
+        { key: "a", header: "", render: (r: any) => r.due && !r.purgedAt && !r.legalHold && <Button size="sm" variant="danger" onClick={() => setPurge(r)}>Executar retenção</Button> },
+      ]} />
+      {purge && <PurgeModal row={purge} onClose={() => setPurge(null)} />}
+    </>
+  );
+}
+
+function PurgeModal({ row, onClose }: { row: any; onClose: () => void }) {
+  const [f, setF] = useState({ confirmName: "", reason: "" });
+  const go = useAction((v: any) => post(`/api/admin/retention/${row.tenantId}/purge`, v), [["admin-retention"]]);
+  return (
+    <Modal open onClose={onClose} title={`Executar retenção · ${row.name}`}>
+      <div className="space-y-3 text-sm">
+        <Alert tone="error">Ação irreversível: dados pessoais anonimizados, produtos, stock, documentos, histórico de IA e notificações eliminados, contas desativadas. Registos financeiros, vendas, faturas e auditoria são conservados (obrigação legal).</Alert>
+        {go.error && <ErrorText error={go.error} />}
+        <Field label="Escreva o nome exato da empresa para confirmar"><Input value={f.confirmName} onChange={(e) => setF({ ...f, confirmName: e.target.value })} /></Field>
+        <Field label="Motivo (auditado)"><Input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button variant="danger" disabled={f.confirmName !== row.name || f.reason.trim().length < 10} loading={go.isPending} onClick={async () => { await go.mutateAsync(f); onClose(); }}>Executar</Button></div>
+      </div>
+    </Modal>
+  );
+}
+
+const INC_STATUS: Record<string, string> = { investigating: "Em investigação", identified: "Causa identificada", monitoring: "Em monitorização", resolved: "Resolvido" };
+
+export function AdminIncidents() {
+  const { data, isLoading, error } = useApi<any[]>(["admin-incidents"], "/api/admin/incidents");
+  const tenants = useApi<any[]>(["admin-tenants"], "/api/admin/tenants");
+  const [creating, setCreating] = useState(false);
+  const [update, setUpdate] = useState<any | null>(null);
+  return (
+    <>
+      <PageHeader title="Incidentes" subtitle="Registo e comunicação de incidentes operacionais. As empresas afetadas são notificadas e veem um aviso no painel." actions={<Button onClick={() => setCreating(true)}>Abrir incidente</Button>} />
+      {error ? <ErrorState error={error} /> : isLoading ? <Loading /> : !data?.length ? <Card><p className="text-sm muted">Sem incidentes registados.</p></Card> : (
+        <div className="space-y-3">{data.map((i) => (
+          <div key={i.id} className="card p-4 text-sm">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div><p className="font-semibold">{i.title}</p><p className="text-xs muted">{fmtDateTime(i.createdAt)} · {i.allTenants ? "Todas as empresas" : `${i.affectedTenants.length} empresa(s)`}</p></div>
+              <div className="flex gap-2"><Badge tone={i.severity === "critical" || i.severity === "high" ? "red" : "amber"}>{i.severity}</Badge><Badge tone={i.status === "resolved" ? "green" : "blue"}>{INC_STATUS[i.status]}</Badge></div>
+            </div>
+            <ol className="mt-3 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-700">
+              {i.updates.map((u: any, k: number) => <li key={k}><span className="text-xs muted">{fmtDateTime(u.at)} · {u.by} · {INC_STATUS[u.status]}</span><br />{u.note}</li>)}
+            </ol>
+            {i.status !== "resolved" && <Button size="sm" variant="secondary" className="mt-3" onClick={() => setUpdate(i)}>Atualizar</Button>}
+          </div>
+        ))}</div>
+      )}
+      {creating && <IncidentForm tenants={tenants.data ?? []} onClose={() => setCreating(false)} />}
+      {update && <IncidentUpdate incident={update} onClose={() => setUpdate(null)} />}
+    </>
+  );
+}
+
+function IncidentForm({ tenants, onClose }: { tenants: any[]; onClose: () => void }) {
+  const [f, setF] = useState({ title: "", severity: "medium", description: "", allTenants: true, affectedTenants: [] as string[] });
+  const go = useAction((v: any) => post("/api/admin/incidents", v), [["admin-incidents"]]);
+  return (
+    <Modal open onClose={onClose} title="Abrir incidente" wide>
+      <div className="space-y-3 text-sm">
+        {go.error && <ErrorText error={go.error} />}
+        <Field label="Título"><Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></Field>
+        <Field label="Gravidade"><Select value={f.severity} onChange={(e) => setF({ ...f, severity: e.target.value })}><option value="low">Baixa</option><option value="medium">Média</option><option value="high">Alta</option><option value="critical">Crítica</option></Select></Field>
+        <Field label="Descrição (enviada às empresas afetadas)"><textarea className="input" rows={3} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={f.allTenants} onChange={(e) => setF({ ...f, allTenants: e.target.checked })} />Afeta todas as empresas</label>
+        {!f.allTenants && <div className="max-h-48 overflow-auto rounded border border-slate-200 p-2 dark:border-slate-700">{tenants.map((t) => <label key={t.id} className="flex items-center gap-2"><input type="checkbox" checked={f.affectedTenants.includes(t.id)} onChange={(e) => setF({ ...f, affectedTenants: e.target.checked ? [...f.affectedTenants, t.id] : f.affectedTenants.filter((x) => x !== t.id) })} />{t.name}</label>)}</div>}
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button disabled={f.title.trim().length < 5} loading={go.isPending} onClick={async () => { await go.mutateAsync(f); onClose(); }}>Abrir e notificar</Button></div>
+      </div>
+    </Modal>
+  );
+}
+
+function IncidentUpdate({ incident, onClose }: { incident: any; onClose: () => void }) {
+  const [f, setF] = useState({ status: incident.status, note: "" });
+  const go = useAction((v: any) => post(`/api/admin/incidents/${incident.id}/updates`, v), [["admin-incidents"]]);
+  return (
+    <Modal open onClose={onClose} title={`Atualizar · ${incident.title}`}>
+      <div className="space-y-3 text-sm">
+        {go.error && <ErrorText error={go.error} />}
+        <Field label="Estado"><Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>{Object.entries(INC_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
+        <Field label="Nota (enviada às empresas afetadas)"><textarea className="input" rows={3} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button disabled={f.note.trim().length < 3} loading={go.isPending} onClick={async () => { await go.mutateAsync(f); onClose(); }}>Publicar atualização</Button></div>
+      </div>
+    </Modal>
   );
 }

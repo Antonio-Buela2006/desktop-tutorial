@@ -26,6 +26,7 @@ import { nextInvoiceNumber } from "../core/tenantService.js";
 import { getSetting } from "../modules/billing.routes.js";
 import { purgeDeletedFiles } from "../modules/files.routes.js";
 import { DEFAULT_ALERTS } from "../modules/companyExtras.routes.js";
+import { purgeExpiredTrial } from "../core/retention.js";
 import { monthlySales } from "../modules/business.routes.js";
 
 /** Emite faturas de renovação 3 dias antes do fim do período (se não houver cancelamento). */
@@ -144,9 +145,14 @@ export async function purgeTrash(now = new Date()) {
   return purged;
 }
 
-/** Retenção pós-cancelamento: sinaliza empresas cujo prazo terminou (eliminação exige aprovação — §6.4). */
+/**
+ * Retenção: demonstrações expiradas há mais de `trialSuspendedDays` têm os dados fictícios limpos
+ * automaticamente; empresas canceladas após `postCancelDays` são sinalizadas (a eliminação exige aprovação — §6.4).
+ */
 export async function retentionReview(now = new Date()) {
-  const r = await getSetting("retention", { postCancelDays: 90 });
+  const r = await getSetting("retention", { postCancelDays: 90, trialSuspendedDays: 30 });
+  const trials = await db.select().from(subscriptions).where(and(eq(subscriptions.status, "trial"), lt(subscriptions.trialEndsAt, new Date(now.getTime() - (r.trialSuspendedDays ?? 30) * DAY))));
+  for (const s of trials) await purgeExpiredTrial(s.tenantId);
   const ended = await db.select().from(subscriptions).where(and(inArray(subscriptions.status, ["canceled", "expired"]), lt(subscriptions.updatedAt, new Date(now.getTime() - r.postCancelDays * DAY))));
   return ended.map((s) => s.tenantId);
 }

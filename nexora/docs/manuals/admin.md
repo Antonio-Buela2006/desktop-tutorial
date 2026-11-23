@@ -32,3 +32,9 @@ geral), autonomia, dupla aprovação financeira, módulos, idiomas, alertas, del
 *Definições*: exigir 2FA, tempo de inatividade, máximo de dispositivos, prazo da lixeira,
 transferência da administração principal, **acesso de suporte** temporário à equipa Nexora.
 *Auditoria*: histórico completo com verificação de integridade da cadeia.
+
+## Importação em massa
+Em *Clientes* ou *Stock* → **Importar CSV**:
+1. Descarregue o modelo ou use o seu ficheiro (vírgula ou ponto e vírgula, com cabeçalho).
+2. Veja a pré-visualização: linhas válidas, com erros (com o motivo) e duplicadas (NIF ou SKU já existentes ou repetidos no ficheiro).
+3. Confirme. Só as linhas válidas são gravadas, e a importação fica na auditoria.

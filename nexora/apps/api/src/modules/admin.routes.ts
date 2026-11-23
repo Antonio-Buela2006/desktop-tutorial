@@ -46,7 +46,7 @@ const ROLE_CAN: Record<string, string[]> = {
   readonly: ["tenants", "audit"],
 };
 
-async function requireAdmin(req: FastifyRequest, area?: string): Promise<{ admin: Admin; sessionId: string }> {
+export async function requireAdmin(req: FastifyRequest, area?: string): Promise<{ admin: Admin; sessionId: string }> {
   const token = req.cookies?.[ADMIN_COOKIE];
   if (!token) throw unauthorized();
   const [row] = await db.select({ s: platformSessions, a: platformAdmins }).from(platformSessions).innerJoin(platformAdmins, eq(platformAdmins.id, platformSessions.adminId))
@@ -62,7 +62,7 @@ async function requireAdmin(req: FastifyRequest, area?: string): Promise<{ admin
   return { admin: row.a, sessionId: row.s.id };
 }
 
-const adminAudit = (a: Admin, req: FastifyRequest) => ({ actorType: "platform_admin" as const, actorId: a.id, ip: req.ip, traceId: String(req.id) });
+export const adminAudit = (a: Admin, req: FastifyRequest) => ({ actorType: "platform_admin" as const, actorId: a.id, ip: req.ip, traceId: String(req.id) });
 
 export async function adminRoutes(app: FastifyInstance) {
   app.post("/api/admin/auth/login", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (req, reply) => {

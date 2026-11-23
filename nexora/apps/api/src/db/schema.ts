@@ -117,6 +117,8 @@ export type AlertSettings = {
 
 export type TenantSettings = {
   alerts?: AlertSettings;
+  /** Preenchido quando os dados de negócio foram eliminados por fim do prazo de retenção. */
+  dataPurgedAt?: string;
   require2fa: "off" | "admins" | "all";
   idleTimeoutMinutes: number;
   maxSessionsPerUser: number;
@@ -683,3 +685,19 @@ export const financeTransactions = pgTable(
   },
   (t) => [index("finance_tenant_date").on(t.tenantId, t.occurredOn)],
 );
+
+/** Incidentes operacionais geridos pela equipa Nexora (§7.1, §16.3). */
+export type IncidentUpdate = { at: string; by: string; status: string; note: string };
+export const incidents = pgTable("incidents", {
+  id: id(),
+  title: text("title").notNull(),
+  severity: text("severity").notNull(), // low | medium | high | critical
+  status: text("status").notNull().default("investigating"), // investigating | identified | monitoring | resolved
+  description: text("description").notNull().default(""),
+  affectedTenants: uuid("affected_tenants").array().notNull().default([]),
+  allTenants: boolean("all_tenants").notNull().default(false),
+  updates: jsonb("updates").$type<IncidentUpdate[]>().notNull().default([]),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: createdAt(),
+  resolvedAt: ts("resolved_at"),
+});

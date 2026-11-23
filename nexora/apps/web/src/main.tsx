@@ -41,6 +41,8 @@ const AdminSettings = lazy(() => A().then((m) => ({ default: m.AdminSettings }))
 const AdminSupport = lazy(() => A().then((m) => ({ default: m.AdminSupport })));
 const AdminAudit = lazy(() => A().then((m) => ({ default: m.AdminAudit })));
 const Admin2fa = lazy(() => A().then((m) => ({ default: m.Admin2fa })));
+const AdminRetention = lazy(() => A().then((m) => ({ default: m.AdminRetention })));
+const AdminIncidents = lazy(() => A().then((m) => ({ default: m.AdminIncidents })));
 
 const qc = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } });
 
@@ -101,6 +103,8 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="support" element={<AdminSupport />} />
                 <Route path="audit" element={<AdminAudit />} />
                 <Route path="2fa" element={<Admin2fa />} />
+                <Route path="retention" element={<AdminRetention />} />
+                <Route path="incidents" element={<AdminIncidents />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

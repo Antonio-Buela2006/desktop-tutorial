@@ -18,13 +18,13 @@ Plataforma web **multiempresa**, **modular** e **assistida por IA** para PME, im
 | RBAC | 45 permissões granulares, 9 funções predefinidas + personalizadas, ajustes por utilizador (conceder/negar), acessos temporários com validade, segregação de funções, administradores principal/secundários com âmbito delegado, transferência segura de titularidade |
 | Subscrição | Planos Starter/Professional/Enterprise configuráveis, limites **independentes** de funcionários e utilizadores, trial 14 dias com dados fictícios, módulos com dependências, troca gratuita nos 7 primeiros dias e proporcional depois, upgrade/downgrade com pré-visualização, capacidade adicional, cancelamento no fim do período, regras de atraso **1–3 / 4–8 / 9+** aplicadas no servidor |
 | Pagamentos | Camada desacoplada de fornecedores (sandbox, transferência bancária com reconciliação manual, Multicaixa Express preparado), **webhooks HMAC**, idempotência, faturas com estados, ativação automática após pagamento |
-| Módulos de negócio | Clientes (CRM), Stock (com movimentos, ajustes, **stock por unidade + armazém central e transferências**), Vendas (baixa de stock transacional), Finanças (aprovação com segregação) — nomes provisórios |
+| Módulos de negócio | **Importação CSV com pré-visualização** (clientes e produtos: erros e duplicados por linha antes de gravar); Clientes (CRM), Stock (com movimentos, ajustes, **stock por unidade + armazém central e transferências**), Vendas (baixa de stock transacional), Finanças (aprovação com segregação) — nomes provisórios |
 | IA | Camada independente do fornecedor (local determinístico ou Claude via `ANTHROPIC_API_KEY`), políticas por empresa (restrito/personalizado/geral, autonomia, módulos), ferramentas em *allowlist* com as permissões do utilizador, **aprovação humana** para ações sensíveis (dupla opcional), idempotência, créditos com bloqueio isolado, previsões e simulações explicáveis, alertas inteligentes, voz (Web Speech API) e PT/EN |
 | Governação | Auditoria **encadeada por hash** com verificação, notificações, exportação CSV/JSON/XLSX/PDF com link temporário, documentos privados (local/S3) de funcionários e clientes, faturas em PDF, lixeira recuperável (30 dias, configurável), retenção legal de registos financeiros, acesso de suporte excecional (autorizado pela empresa, com prazo e âmbito) |
 | Empresa | Unidades/filiais com **âmbito por unidade** (utilizadores restritos só veem e registam funcionários, vendas e finanças das suas unidades — também no dashboard, IA, pesquisa, exportação e documentos), preferências de notificação (canais, silenciar alertas, horário de silêncio), alertas configuráveis (stock, despesas anormais, queda de vendas), retenção legal (*legal hold*), anonimização de ex-funcionários, guia de primeiros passos |
 | Operação | Antivírus ClamAV nos uploads (opcional), backups encriptados com **teste de restauro automático**, métricas Prometheus, e-mail SMTP, bloqueio automático de IP após falhas de autenticação |
 | Idiomas | Interface em **português e inglês** (dicionário central em `apps/web/src/lib/en.ts`, aplicado automaticamente pelos componentes base); preferência por utilizador guardada na conta; IA responde no idioma escolhido |
-| Portal Nexora | Login separado (2FA), métricas agregadas, empresas (só metadados), planos/preços/limites, catálogo dos 18 módulos, parâmetros globais, reconciliação de pagamentos, suporte, auditoria |
+| Portal Nexora | Login separado (2FA), **incidentes** (com aviso às empresas afetadas), **retenção de dados** (execução aprovada, com confirmação e respeito pela retenção legal), métricas agregadas, empresas (só metadados), planos/preços/limites, catálogo dos 18 módulos, parâmetros globais, reconciliação de pagamentos, suporte, auditoria |
 
 ## Arquitetura
 
@@ -66,7 +66,7 @@ Repor a base local: `pnpm db:reset` (proibido em produção).
 
 ```bash
 pnpm typecheck   # TypeScript strict (api + web)
-pnpm test        # 72 testes: unitários + integração em PostgreSQL real (base nexora_test)
+pnpm test        # 78 testes: unitários + integração em PostgreSQL real (base nexora_test)
 pnpm build       # build da API e da web
 node tests/e2e/smoke.cjs   # E2E no navegador (com `pnpm dev` + seed; requer `npm i -g playwright && npx playwright install chromium`)
 ```

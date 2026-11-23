@@ -4,6 +4,7 @@ import { useOutletContext, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Plus, Trash2, Pencil, PackagePlus, Ban, Check, X, Paperclip, ArrowLeftRight } from "lucide-react";
 import { DocumentsModal } from "../../components/Documents";
+import { ImportModal } from "../../components/Import";
 import { del, fmtDate, fmtDateTime, fmtMoney, fmtNum, post, put, useAction, useApi, type Me } from "../../lib/api";
 import { Alert, Badge, Button, Card, DataTable, ErrorState, ErrorText, Field, Input, Loading, Modal, PageHeader, Select, Stat, useConfirm, useToast, useUnsavedGuard } from "../../components/ui";
 import { can } from "../../layouts/AppLayout";
@@ -124,13 +125,14 @@ export function Customers() {
   const list = useList("customers", "/api/crm/customers");
   const [edit, setEdit] = useState<any | null>(null);
   const [docs, setDocs] = useState<any | null>(null);
+  const [importing, setImporting] = useState(false);
   const { confirm, dialog } = useConfirm();
   const { toast, toastEl } = useToast();
   const remove = useAction((id: string) => del(`/api/crm/customers/${id}`), [["customers"]]);
   const w = me.subscription.caps.write;
   return (
     <>
-      <PageHeader title="Clientes" subtitle="Cadastro e contactos comerciais." actions={can(me, "crm.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> <T>Novo cliente</T></Button>} />
+      <PageHeader title="Clientes" subtitle="Cadastro e contactos comerciais." actions={can(me, "crm.create") && <><Button variant="secondary" disabled={!w} onClick={() => setImporting(true)}>Importar CSV</Button><Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> <T>Novo cliente</T></Button></>} />
       <DataTable
         rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error}
         search={list.q} onSearch={list.setQ} sort={list.sort} onSort={list.onSort}
@@ -151,6 +153,7 @@ export function Customers() {
           },
         ]}
       />
+      {importing && <ImportModal dataset="customers" onClose={() => setImporting(false)} onDone={(n) => { setImporting(false); toast(`${n} ✓`); }} />}
       {docs && <DocumentsModal entityType="customer" entity={{ id: docs.id, name: docs.name }} canEdit={can(me, "crm.edit") && w} onClose={() => setDocs(null)} />}
       <CustomerForm value={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); toast("Cliente guardado."); }} />
       {dialog}{toastEl}
@@ -192,6 +195,7 @@ export function Products() {
   const [edit, setEdit] = useState<any | null>(null);
   const [adjust, setAdjust] = useState<any | null>(null);
   const [transfer, setTransfer] = useState<any | null>(null);
+  const [importing, setImporting] = useState(false);
   const branches = useBranches();
   const bName = (id: string) => branches.find((b) => b.id === id)?.code ?? "?";
   const [showMoves, setShowMoves] = useState(false);
@@ -204,6 +208,7 @@ export function Products() {
     <>
       <PageHeader title="Stock e inventário" subtitle="Produtos, níveis de stock e ajustes rastreáveis." actions={<>
         <Button variant="secondary" onClick={() => setShowMoves(true)}><T>Movimentos</T></Button>
+        {can(me, "inventory.create") && <Button variant="secondary" disabled={!w} onClick={() => setImporting(true)}>Importar CSV</Button>}
         {can(me, "inventory.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> <T>Novo produto</T></Button>}
       </>} />
       <DataTable
@@ -239,6 +244,7 @@ export function Products() {
       />
       <ProductForm value={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); toast("Produto guardado."); }} />
       <AdjustForm value={adjust} onClose={() => setAdjust(null)} onSaved={() => { setAdjust(null); toast("Stock ajustado."); }} />
+      {importing && <ImportModal dataset="products" onClose={() => setImporting(false)} onDone={(n) => { setImporting(false); toast(`${n} ✓`); }} />}
       {transfer && <TransferForm product={transfer} onClose={() => setTransfer(null)} onSaved={() => { setTransfer(null); toast("Transferência registada."); }} />}
       <Modal open={showMoves} onClose={() => setShowMoves(false)} title="Movimentos de stock" wide>{showMoves && <Movements />}</Modal>
       {dialog}{toastEl}

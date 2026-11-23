@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 — 2026-11-23
+- Importação CSV de clientes e produtos com pré-visualização linha a linha (erros e duplicados no ficheiro e na base) e confirmação; grava só as linhas válidas e regista auditoria.
+- Retenção de dados aplicada:
+  - as demonstrações expiradas têm os dados fictícios limpos após o prazo;
+  - as empresas canceladas, depois do prazo de retenção, são eliminadas no portal Nexora com confirmação pelo nome, motivo e bloqueio sob retenção legal;
+  - os dados pessoais são anonimizados e os registos financeiros, as vendas, as faturas e a auditoria são conservados.
+- Incidentes no portal Nexora: abertura, atualizações e resolução; as empresas afetadas são notificadas (notificação não silenciável) e veem um aviso no painel.
+- 78 testes.
+
 ## 0.6.0 — 2026-11-23
 - Interface em inglês: site público, entrada e registo, painel da empresa, IA e portal Nexora.
 - Dicionário central PT→EN aplicado automaticamente pelos componentes base: títulos, campos, botões, tabelas, opções, alertas e mensagens de erro por código.

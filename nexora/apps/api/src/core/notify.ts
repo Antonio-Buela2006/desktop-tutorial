@@ -29,7 +29,7 @@ export async function sendMail(to: string, subject: string, body: string) {
 type NotifyInput = { type: string; title: string; body?: string; severity?: "info" | "warning" | "critical"; link?: string; dedupeKey?: string };
 
 /** Tipos que nunca podem ser silenciados (segurança da conta e estado da subscrição). */
-export const UNMUTABLE_PREFIXES = ["security.", "billing.", "trial.", "ownership."];
+export const UNMUTABLE_PREFIXES = ["security.", "billing.", "trial.", "ownership.", "incident."];
 const unmutable = (type: string) => UNMUTABLE_PREFIXES.some((p) => type.startsWith(p));
 
 export type Prefs = typeof notificationPreferences.$inferSelect;
