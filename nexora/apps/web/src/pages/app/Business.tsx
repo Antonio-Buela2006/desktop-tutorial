@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { T, useI18n } from "../../lib/i18n";
 import { useOutletContext, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Plus, Trash2, Pencil, PackagePlus, Ban, Check, X, Paperclip, ArrowLeftRight } from "lucide-react";
@@ -45,6 +46,8 @@ export function useList<T = any>(key: string, base: string, extra: Record<string
 export function Dashboard() {
   const me = useMeCtx();
   const [branch, setBranch] = useState("");
+  const { lang } = useI18n();
+  const en = lang === "en";
   const { data, isLoading, error } = useApi<any>(["dashboard", branch], `/api/dashboard${branch ? `?branchId=${branch}` : ""}`);
   const cur = me.tenant.currency;
   if (isLoading) return <Loading />;
@@ -53,16 +56,16 @@ export function Dashboard() {
   const delta = s && s.previousMonth ? Math.round(((s.month - s.previousMonth) / s.previousMonth) * 100) : null;
   return (
     <>
-      <PageHeader title={`Olá, ${me.user.name.split(" ")[0]}`} subtitle={`${me.tenant.name} · indicadores adaptados às suas permissões${me.membership.branchScope ? " e unidades" : ""}`} actions={<BranchSelect value={branch} onChange={setBranch} />} />
+      <PageHeader title={`${en ? "Hello" : "Olá"}, ${me.user.name.split(" ")[0]}`} subtitle={en ? `${me.tenant.name} · indicators tailored to your permissions${me.membership.branchScope ? " and branches" : ""}` : `${me.tenant.name} · indicadores adaptados às suas permissões${me.membership.branchScope ? " e unidades" : ""}`} actions={<BranchSelect value={branch} onChange={setBranch} />} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {s && <Stat label="Vendas do mês" value={fmtMoney(s.month, cur)} hint={delta !== null ? `${delta >= 0 ? "+" : ""}${delta}% vs mês anterior completo` : undefined} tone={delta !== null ? (delta >= 0 ? "up" : "down") : undefined} />}
-        {data.finance && <Stat label="Resultado do mês" value={fmtMoney(data.finance.result, cur)} hint={`${data.finance.pendingApprovals} despesa(s) por aprovar`} />}
-        {data.inventory && <Stat label="Stock baixo" value={fmtNum(data.inventory.lowStock.length)} hint={`de ${data.inventory.products} produtos`} tone={data.inventory.lowStock.length ? "down" : undefined} />}
+        {s && <Stat label="Vendas do mês" value={fmtMoney(s.month, cur)} hint={delta !== null ? `${delta >= 0 ? "+" : ""}${delta}% ${en ? "vs full previous month" : "vs mês anterior completo"}` : undefined} tone={delta !== null ? (delta >= 0 ? "up" : "down") : undefined} />}
+        {data.finance && <Stat label="Resultado do mês" value={fmtMoney(data.finance.result, cur)} hint={en ? `${data.finance.pendingApprovals} expense(s) pending approval` : `${data.finance.pendingApprovals} despesa(s) por aprovar`} />}
+        {data.inventory && <Stat label="Stock baixo" value={fmtNum(data.inventory.lowStock.length)} hint={en ? `of ${data.inventory.products} products` : `de ${data.inventory.products} produtos`} tone={data.inventory.lowStock.length ? "down" : undefined} />}
         {data.customers && <Stat label="Clientes" value={fmtNum(data.customers.total)} />}
         {data.employees && <Stat label="Funcionários ativos" value={fmtNum(data.employees.active)} />}
       </div>
       <Onboarding />
-      {!Object.keys(data).length && <Alert>O seu perfil ainda não tem acesso a indicadores de negócio. Peça ao administrador as permissões necessárias.</Alert>}
+      {!Object.keys(data).length && <Alert><T>O seu perfil ainda não tem acesso a indicadores de negócio. Peça ao administrador as permissões necessárias.</T></Alert>}
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         {data.salesByMonth && (
           <Card title="Vendas por mês" className="lg:col-span-2">
@@ -81,7 +84,7 @@ export function Dashboard() {
         )}
         {data.inventory && (
           <Card title="Produtos a repor">
-            {!data.inventory.lowStock.length ? <p className="text-sm muted">Nenhum produto abaixo do nível de reposição.</p> : (
+            {!data.inventory.lowStock.length ? <p className="text-sm muted"><T>Nenhum produto abaixo do nível de reposição.</T></p> : (
               <ul className="space-y-2 text-sm">{data.inventory.lowStock.map((p: any) => <li key={p.id} className="flex justify-between"><span>{p.name}</span><Badge tone="red">{p.stockQty} / {p.reorderLevel}</Badge></li>)}</ul>
             )}
           </Card>
@@ -92,21 +95,22 @@ export function Dashboard() {
 }
 
 function Onboarding() {
+  const { lang, tr } = useI18n();
   const { data } = useApi<any>(["onboarding"], "/api/company/onboarding");
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem("nx-onboarding-hidden") === "1"; } catch { return false; } });
   if (!data || hidden || data.completed === data.total) return null;
   return (
     <div className="card mt-6 p-4">
       <div className="flex items-start justify-between gap-2">
-        <div><h2 className="font-semibold">Primeiros passos</h2><p className="text-sm muted">{data.completed} de {data.total} concluídos</p></div>
-        <button className="text-xs muted underline" onClick={() => { setHidden(true); try { localStorage.setItem("nx-onboarding-hidden", "1"); } catch {} }}>Ocultar</button>
+        <div><h2 className="font-semibold"><T>Primeiros passos</T></h2><p className="text-sm muted">{lang === "en" ? `${data.completed} of ${data.total} done` : `${data.completed} de ${data.total} concluídos`}</p></div>
+        <button className="text-xs muted underline" onClick={() => { setHidden(true); try { localStorage.setItem("nx-onboarding-hidden", "1"); } catch {} }}><T>Ocultar</T></button>
       </div>
       <div className="mt-2 h-1.5 rounded bg-slate-200 dark:bg-slate-800"><div className="h-1.5 rounded bg-brand-500" style={{ width: `${(data.completed / data.total) * 100}%` }} /></div>
       <ul className="mt-3 grid gap-2 sm:grid-cols-2">
         {data.steps.map((s: any) => (
           <li key={s.key}><a href={s.link} className="flex items-center gap-2 rounded-lg p-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
             <span className={`flex h-5 w-5 items-center justify-center rounded-full text-xs ${s.done ? "bg-emerald-500 text-white" : "border border-slate-300 dark:border-slate-600"}`}>{s.done ? "✓" : ""}</span>
-            <span className={s.done ? "muted line-through" : ""}>{s.label}</span>
+            <span className={s.done ? "muted line-through" : ""}>{tr(s.label)}</span>
           </a></li>
         ))}
       </ul>
@@ -126,7 +130,7 @@ export function Customers() {
   const w = me.subscription.caps.write;
   return (
     <>
-      <PageHeader title="Clientes" subtitle="Cadastro e contactos comerciais." actions={can(me, "crm.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> Novo cliente</Button>} />
+      <PageHeader title="Clientes" subtitle="Cadastro e contactos comerciais." actions={can(me, "crm.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> <T>Novo cliente</T></Button>} />
       <DataTable
         rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error}
         search={list.q} onSearch={list.setQ} sort={list.sort} onSort={list.onSort}
@@ -141,7 +145,7 @@ export function Customers() {
               <div className="flex justify-end gap-1">
                 <Button size="sm" variant="ghost" onClick={() => setDocs(r)} aria-label={`Documentos de ${r.name}`}><Paperclip className="h-4 w-4" /></Button>
                 {can(me, "crm.edit") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setEdit(r)} aria-label={`Editar ${r.name}`}><Pencil className="h-4 w-4" /></Button>}
-                {can(me, "crm.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label={`Eliminar ${r.name}`} onClick={async () => { if (await confirm("Eliminar cliente", <>O cliente <strong>{r.name}</strong> vai para a lixeira e pode ser restaurado durante 30 dias.</>)) { await remove.mutateAsync(r.id); toast("Cliente movido para a lixeira."); } }}><Trash2 className="h-4 w-4" /></Button>}
+                {can(me, "crm.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label={`Eliminar ${r.name}`} onClick={async () => { if (await confirm("Eliminar cliente", <>O cliente <strong>{r.name}</strong> <T>vai para a lixeira e pode ser restaurado durante 30 dias.</T></>)) { await remove.mutateAsync(r.id); toast("Cliente movido para a lixeira."); } }}><Trash2 className="h-4 w-4" /></Button>}
               </div>
             ),
           },
@@ -173,7 +177,7 @@ function CustomerForm({ value, onClose, onSaved }: { value: any | null; onClose:
         </div>
         <Field label="NIF"><Input value={cur.taxId ?? ""} onChange={(e) => set("taxId", e.target.value)} /></Field>
         <Field label="Notas"><textarea className="input" rows={3} value={cur.notes ?? ""} onChange={(e) => set("notes", e.target.value)} /></Field>
-        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Guardar</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={save.isPending}><T>Guardar</T></Button></div>
       </form>
     </Modal>
   );
@@ -199,12 +203,12 @@ export function Products() {
   return (
     <>
       <PageHeader title="Stock e inventário" subtitle="Produtos, níveis de stock e ajustes rastreáveis." actions={<>
-        <Button variant="secondary" onClick={() => setShowMoves(true)}>Movimentos</Button>
-        {can(me, "inventory.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> Novo produto</Button>}
+        <Button variant="secondary" onClick={() => setShowMoves(true)}><T>Movimentos</T></Button>
+        {can(me, "inventory.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> <T>Novo produto</T></Button>}
       </>} />
       <DataTable
         rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
-        toolbar={<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> Só stock baixo</label>}
+        toolbar={<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> <T>Só stock baixo</T></label>}
         columns={[
           { key: "sku", header: "SKU" },
           { key: "name", header: "Produto", render: (r: any) => <span className="font-medium">{r.name}</span> },
@@ -272,7 +276,7 @@ function ProductForm({ value, onClose, onSaved }: { value: any | null; onClose: 
           <Field label="Nível de reposição"><Input type="number" min={0} value={cur.reorderLevel} onChange={(e) => set("reorderLevel", e.target.value)} /></Field>
           {!value?.id && <Field label="Stock inicial"><Input type="number" min={0} value={cur.initialStock} onChange={(e) => set("initialStock", e.target.value)} /></Field>}
         </div>
-        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Guardar</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={save.isPending}><T>Guardar</T></Button></div>
       </form>
     </Modal>
   );
@@ -303,8 +307,8 @@ function TransferForm({ product, onClose, onSaved }: { product: any; onClose: ()
         </div>
         <Field label="Quantidade"><Input type="number" min={1} max={qtyAt(product, from)} required value={qty} onChange={(e) => setQty(+e.target.value)} /></Field>
         <Field label="Motivo"><Input required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Abastecimento, reposição…" /></Field>
-        <p className="text-xs muted">O total da empresa não muda; só a localização do stock.</p>
-        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button disabled={from === to} loading={save.isPending}>Transferir</Button></div>
+        <p className="text-xs muted"><T>O total da empresa não muda; só a localização do stock.</T></p>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button disabled={from === to} loading={save.isPending}><T>Transferir</T></Button></div>
       </form>
     </Modal>
   );
@@ -322,10 +326,10 @@ function AdjustForm({ value, onClose, onSaved }: { value: any | null; onClose: (
       <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); await save.mutateAsync({ delta: +delta, reason, branchId: where || null }); setDelta(0); setReason(""); onSaved(); }}>
         {save.error && <ErrorText error={save.error} />}
         {locs.length > 1 && <Field label="Localização"><Select value={where} onChange={(e) => setLoc(e.target.value)}>{locs.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}</Select></Field>}
-        <p className="text-sm">Stock nesta localização: <strong>{qtyAt(value, where)}</strong> → depois do ajuste: <strong>{qtyAt(value, where) + Number(delta || 0)}</strong></p>
+        <p className="text-sm"><T>Stock nesta localização:</T> <strong>{qtyAt(value, where)}</strong> <T>→ depois do ajuste:</T> <strong>{qtyAt(value, where) + Number(delta || 0)}</strong></p>
         <Field label="Quantidade (+ entrada / − saída)"><Input type="number" required value={delta} onChange={(e) => setDelta(Number(e.target.value))} /></Field>
         <Field label="Motivo"><Input required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Inventário, quebra, devolução…" /></Field>
-        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Confirmar ajuste</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={save.isPending}><T>Confirmar ajuste</T></Button></div>
       </form>
     </Modal>
   );
@@ -345,7 +349,7 @@ export function Sales() {
   const cur = me.tenant.currency;
   return (
     <>
-      <PageHeader title="Vendas" subtitle="Cada venda dá baixa de stock automaticamente, numa única transação." actions={can(me, "sales.create") && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> Nova venda</Button>} />
+      <PageHeader title="Vendas" subtitle="Cada venda dá baixa de stock automaticamente, numa única transação." actions={can(me, "sales.create") && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> <T>Nova venda</T></Button>} />
       <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
         toolbar={<BranchSelect value={branch} onChange={setBranch} />}
         columns={[
@@ -387,9 +391,9 @@ function SaleForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
             <Button type="button" variant="ghost" aria-label="Remover linha" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}><X className="h-4 w-4" /></Button>
           </div>
         ))}
-        <Button type="button" variant="secondary" size="sm" onClick={() => setLines([...lines, { productId: "", quantity: 1 }])}><Plus className="h-4 w-4" /> Linha</Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => setLines([...lines, { productId: "", quantity: 1 }])}><Plus className="h-4 w-4" /> <T>Linha</T></Button>
         <p className="text-right text-lg font-semibold">Total: {fmtMoney(total, me.tenant.currency)}</p>
-        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Registar venda</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={save.isPending}><T>Registar venda</T></Button></div>
       </form>
     </Modal>
   );
@@ -408,7 +412,7 @@ export function Finance() {
   const cur = me.tenant.currency;
   return (
     <>
-      <PageHeader title="Finanças" subtitle={`Receitas e despesas. Despesas a partir de ${fmtMoney(list.data?.approvalThreshold ?? 500000, cur)} exigem aprovação de outra pessoa.`} actions={can(me, "finance.create") && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> Novo movimento</Button>} />
+      <PageHeader title="Finanças" subtitle={`Receitas e despesas. Despesas a partir de ${fmtMoney(list.data?.approvalThreshold ?? 500000, cur)} exigem aprovação de outra pessoa.`} actions={can(me, "finance.create") && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> <T>Novo movimento</T></Button>} />
       {decide.error && <div className="mb-3"><ErrorText error={decide.error} /></div>}
       <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
         toolbar={<><BranchSelect value={branch} onChange={setBranch} /><Select aria-label="Filtrar estado" value={status} onChange={(e) => setStatus(e.target.value)} className="w-48"><option value="">Todos os estados</option><option value="pending_approval">Por aprovar</option><option value="approved">Aprovados</option><option value="rejected">Rejeitados</option></Select></>}
@@ -450,7 +454,7 @@ function FinanceForm({ onClose, onSaved }: { onClose: () => void; onSaved: (r: a
         </div>
         <Field label="Descrição"><Input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         <BranchField value={f.branchId} onChange={(v) => setF({ ...f, branchId: v })} />
-        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Registar</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={save.isPending}><T>Registar</T></Button></div>
       </form>
     </Modal>
   );

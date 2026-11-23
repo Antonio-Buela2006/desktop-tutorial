@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { T } from "../lib/i18n";
 import { Download, FileText, Trash2, Upload } from "lucide-react";
 import { ApiError, del, fmtDateTime, useAction, useApi } from "../lib/api";
 import { Button, ErrorText, Loading, Modal, Select } from "./ui";
@@ -36,15 +37,15 @@ export function DocumentsModal({ entityType, entity, canEdit, onClose }: { entit
         {(err || remove.error) && <ErrorText error={err || remove.error} />}
         {canEdit && (
           <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-slate-300 p-3 dark:border-slate-700">
-            <label className="block"><span className="label">Categoria</span>
+            <label className="block"><span className="label"><T>Categoria</T></span>
               <Select value={category} onChange={(e) => setCategory(e.target.value)} className="w-44">{["Contrato", "Identificação", "Certificado", "Fatura", "Outro"].map((c) => <option key={c}>{c}</option>)}</Select>
             </label>
             <input ref={input} type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.txt" className="hidden" onChange={(e) => e.target.files?.[0] && send(e.target.files[0])} aria-label="Escolher ficheiro" />
-            <Button loading={busy} onClick={() => input.current?.click()}><Upload className="h-4 w-4" /> Carregar ficheiro</Button>
-            <p className="w-full text-xs muted">PDF, PNG, JPEG, DOCX, XLSX ou TXT até 10 MB. Armazenamento privado; cada acesso fica auditado.</p>
+            <Button loading={busy} onClick={() => input.current?.click()}><Upload className="h-4 w-4" /> <T>Carregar ficheiro</T></Button>
+            <p className="w-full text-xs muted"><T>PDF, PNG, JPEG, DOCX, XLSX ou TXT até 10 MB. Armazenamento privado; cada acesso fica auditado.</T></p>
           </div>
         )}
-        {list.isLoading ? <Loading /> : list.error ? <ErrorText error={list.error} /> : !list.data?.length ? <p className="muted">Sem documentos.</p> : (
+        {list.isLoading ? <Loading /> : list.error ? <ErrorText error={list.error} /> : !list.data?.length ? <p className="muted"><T>Sem documentos.</T></p> : (
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {list.data.map((f) => (
               <li key={f.id} className="flex items-center gap-3 py-2">

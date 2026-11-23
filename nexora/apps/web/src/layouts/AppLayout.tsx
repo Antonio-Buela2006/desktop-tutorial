@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { T } from "../lib/i18n";
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,7 +29,24 @@ export function useTheme() {
 export const can = (me: Me | null | undefined, perm: string) => !!me?.permissions.includes(perm);
 
 function SubscriptionBanner({ me }: { me: Me }) {
+  const { lang } = useI18n();
   const s = me.subscription;
+  const d = (x: string | null) => (x ? new Date(x).toLocaleDateString(lang === "en" ? "en-GB" : "pt-PT") : "—");
+  if (lang === "en") {
+    const en: Record<string, [string, "warning" | "error" | "info"]> = {
+      trial: [`Free trial with sample data until ${d(s.trialEndsAt)}.`, "info"],
+      trial_expired: ["The trial has ended. Convert to a paid plan to continue.", "error"],
+      pending_payment: ["The subscription is awaiting payment confirmation. Activation is automatic once paid.", "warning"],
+      grace: ["Payment overdue: access stays normal until day 3.", "warning"],
+      read_only: ["Payment overdue: read-only mode (view and export). Settle the invoice to edit again.", "error"],
+      suspended: ["Subscription suspended for non-payment. Your data is preserved.", "error"],
+      cancel_scheduled: [`Subscription canceled: access until ${d(s.currentPeriodEnd)}.`, "warning"],
+      canceled: ["Subscription ended. You can export your data during the retention period.", "error"],
+    };
+    const m = en[s.state];
+    if (!m) return null;
+    return <div className="mb-4"><Alert tone={m[1]}>{m[0]} {can(me, "billing.view") && <Link to="/app/billing" className="font-semibold underline">{s.state === "trial" ? "Convert to a paid plan" : "View subscription"}</Link>}</Alert></div>;
+  }
   const msg: Record<string, [string, "warning" | "error" | "info"]> = {
     trial: [`Demonstração gratuita com dados fictícios até ${s.trialEndsAt ? new Date(s.trialEndsAt).toLocaleDateString("pt-PT") : "—"}.`, "info"],
     trial_expired: ["A demonstração terminou. Converta para um plano pago para continuar.", "error"],
@@ -44,24 +62,25 @@ function SubscriptionBanner({ me }: { me: Me }) {
   return (
     <div className="mb-4">
       <Alert tone={m[1]}>
-        {m[0]} {s.state !== "trial" && can(me, "billing.view") && <Link to="/app/billing" className="font-semibold underline">Ver subscrição</Link>}
-        {s.state === "trial" && can(me, "billing.view") && <Link to="/app/billing" className="ml-1 font-semibold underline">Converter para plano pago</Link>}
+        {m[0]} {s.state !== "trial" && can(me, "billing.view") && <Link to="/app/billing" className="font-semibold underline"><T>Ver subscrição</T></Link>}
+        {s.state === "trial" && can(me, "billing.view") && <Link to="/app/billing" className="ml-1 font-semibold underline"><T>Converter para plano pago</T></Link>}
       </Alert>
     </div>
   );
 }
 
 function GlobalSearch() {
+  const { tr } = useI18n();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const { data } = useApi<{ results: { type: string; id: string; title: string; link: string }[] }>(["search", q], q.trim().length >= 2 ? `/api/search?q=${encodeURIComponent(q)}` : null);
   return (
     <div className="relative hidden w-72 md:block">
       <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" aria-hidden />
-      <input className="input pl-8" placeholder="Pesquisar clientes, produtos, pessoas…" aria-label="Pesquisa global" value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      <input className="input pl-8" placeholder={tr("Pesquisar clientes, produtos, pessoas…")} aria-label={tr("Pesquisa global")} value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 150)} />
       {open && q.length >= 2 && (
         <div className="card absolute z-40 mt-1 w-full p-1 shadow-lg">
-          {!data?.results.length ? <p className="p-2 text-sm muted">Sem resultados.</p> : data.results.map((r) => (
+          {!data?.results.length ? <p className="p-2 text-sm muted"><T>Sem resultados.</T></p> : data.results.map((r) => (
             <Link key={r.type + r.id} to={r.link} className="block rounded px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
               <span className="mr-2 text-xs muted">{r.type}</span>{r.title}
             </Link>
@@ -82,6 +101,10 @@ export function AppLayout() {
   const qc = useQueryClient();
   const notif = useApi<{ unread: number }>(["notifications"], me && !me.mfaPending ? "/api/notifications" : null, { refetchInterval: 60_000 });
   useEffect(() => { setMobileOpen(false); }, [loc.pathname]);
+  // O idioma preferido do utilizador (guardado na conta) aplica-se ao entrar.
+  useEffect(() => {
+    if (me?.user.locale && (me.user.locale === "pt" || me.user.locale === "en") && me.user.locale !== lang) setLang(me.user.locale);
+  }, [me?.user.id]); // eslint-disable-line
 
   if (isLoading) return <Loading />;
   if (!me) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;

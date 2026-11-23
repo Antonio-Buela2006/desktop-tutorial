@@ -16,6 +16,6 @@ Transparência exigida pela especificação (§17, §20). Lista honesta do estad
    Voz depende do suporte do navegador (Web Speech API), com alternativa textual.
 10. **Observabilidade**: logs estruturados com request id e métricas Prometheus em `/api/metrics`; tracing OpenTelemetry e captura de erros (Sentry) por integrar.
 11. **Backups/DR**: `pnpm backup` cria cópias encriptadas e `pnpm backup:verify` restaura e valida automaticamente (testado). Falta agendar na infraestrutura escolhida e replicar para outra região; RPO/RTO por definir.
-12. **i18n**: navegação e IA em PT/EN; a maior parte dos textos de ecrã está em português.
+12. **i18n**: a interface (site público, entrada, painel e portal) e a IA estão em PT e EN, com a preferência guardada na conta. Ficam em português os textos gerados pelo servidor (notificações, resumos de auditoria, nomes do catálogo) e algumas frases com valores dinâmicos; as mensagens de erro conhecidas são traduzidas pelo código. Para acrescentar um idioma basta um dicionário como `apps/web/src/lib/en.ts`.
 13. **Site público**: SPA sem SSR (SEO limitado) — ADR-0001.
 14. **Unidades/filiais**: funcionários, vendas e finanças têm unidade, e os utilizadores podem ser restringidos a unidades (verificado no servidor). Há stock por unidade e armazém central, com transferências, mas sem fluxo de aprovação nem documento de guia de transporte; cada unidade conta como um único armazém.

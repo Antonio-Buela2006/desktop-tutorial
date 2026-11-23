@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { T } from "../../lib/i18n";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, fmtMoney, get, post, useApi } from "../../lib/api";
@@ -48,13 +49,13 @@ export function Login() {
         {err ? <ErrorText error={err} /> : null}
         <Field label="E-mail"><Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="Palavra-passe"><Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
-        <Button className="w-full" loading={busy}>Entrar</Button>
+        <Button className="w-full" loading={busy}><T>Entrar</T></Button>
         <div className="flex justify-between text-sm">
-          <Link to="/recuperar" className="text-brand-700 hover:underline dark:text-brand-100">Esqueci-me da palavra-passe</Link>
-          <Link to="/registo" className="text-brand-700 hover:underline dark:text-brand-100">Criar conta</Link>
+          <Link to="/recuperar" className="text-brand-700 hover:underline dark:text-brand-100"><T>Esqueci-me da palavra-passe</T></Link>
+          <Link to="/registo" className="text-brand-700 hover:underline dark:text-brand-100"><T>Criar conta</T></Link>
         </div>
       </form>
-      {import.meta.env.DEV && <p className="mt-6 rounded bg-slate-100 p-2 text-xs muted dark:bg-slate-800">Demo local: demo@nexora.local / DemoNexora2026</p>}
+      {import.meta.env.DEV && <p className="mt-6 rounded bg-slate-100 p-2 text-xs muted dark:bg-slate-800"><T>Demo local: demo@nexora.local / DemoNexora2026</T></p>}
     </AuthCard>
   );
 }
@@ -79,7 +80,7 @@ export function MfaVerify() {
       <form onSubmit={submit} className="space-y-4">
         {err ? <ErrorText error={err} /> : null}
         <Field label="Código"><Input inputMode="numeric" autoComplete="one-time-code" autoFocus required value={code} onChange={(e) => setCode(e.target.value)} /></Field>
-        <Button className="w-full">Verificar</Button>
+        <Button className="w-full"><T>Verificar</T></Button>
       </form>
     </AuthCard>
   );
@@ -90,10 +91,10 @@ export function Forgot() {
   const [sent, setSent] = useState(false);
   return (
     <AuthCard title="Recuperar palavra-passe" subtitle="Enviaremos um link válido durante 30 minutos.">
-      {sent ? <Alert tone="success">Se existir uma conta com este e-mail, receberá instruções em breve.</Alert> : (
+      {sent ? <Alert tone="success"><T>Se existir uma conta com este e-mail, receberá instruções em breve.</T></Alert> : (
         <form onSubmit={async (e) => { e.preventDefault(); await post("/api/auth/password/forgot", { email }); setSent(true); }} className="space-y-4">
           <Field label="E-mail"><Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-          <Button className="w-full">Enviar link</Button>
+          <Button className="w-full"><T>Enviar link</T></Button>
         </form>
       )}
     </AuthCard>
@@ -110,7 +111,7 @@ export function ResetPassword() {
       <form className="space-y-4" onSubmit={async (e) => { e.preventDefault(); try { await post("/api/auth/password/reset", { token: params.get("token"), password: pw }); nav("/login"); } catch (x) { setErr(x); } }}>
         {err ? <ErrorText error={err} /> : null}
         <Field label="Nova palavra-passe"><Input type="password" autoComplete="new-password" required value={pw} onChange={(e) => setPw(e.target.value)} /></Field>
-        <Button className="w-full">Guardar</Button>
+        <Button className="w-full"><T>Guardar</T></Button>
       </form>
     </AuthCard>
   );
@@ -132,7 +133,7 @@ export function AcceptInvite() {
       <form className="space-y-4" onSubmit={async (e) => { e.preventDefault(); try { await post("/api/auth/invitations/accept", { token, password: pw }); await qc.invalidateQueries({ queryKey: ["me"] }); nav("/app"); } catch (x) { setErr(x); } }}>
         {err ? <ErrorText error={err} /> : null}
         <Field label="Palavra-passe" hint={i.existingAccount ? undefined : "Mínimo 10 caracteres, com letras e números."}><Input type="password" required value={pw} onChange={(e) => setPw(e.target.value)} /></Field>
-        <Button className="w-full">Aceitar convite</Button>
+        <Button className="w-full"><T>Aceitar convite</T></Button>
       </form>
     </AuthCard>
   );
@@ -195,7 +196,7 @@ export function Signup() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">Registar empresa</h1>
+      <h1 className="text-2xl font-semibold"><T>Registar empresa</T></h1>
       <ol className="mt-4 flex flex-wrap gap-2 text-xs" aria-label="Passos">
         {steps.map((s, i) => <li key={s} className={cx("rounded-full px-3 py-1", i === step ? "bg-brand-600 text-white" : i < step ? "bg-brand-100 text-brand-700" : "bg-slate-100 dark:bg-slate-800")} aria-current={i === step ? "step" : undefined}>{i + 1}. {s}</li>)}
       </ol>
@@ -212,7 +213,7 @@ export function Signup() {
         )}
         {step === 1 && (
           <>
-            <Alert>O administrador principal pode ser o proprietário, diretor, responsável de TI ou outra pessoa autorizada. A titularidade só pode ser transferida por um processo seguro.</Alert>
+            <Alert><T>O administrador principal pode ser o proprietário, diretor, responsável de TI ou outra pessoa autorizada. A titularidade só pode ser transferida por um processo seguro.</T></Alert>
             <Field label="Nome do administrador principal"><Input value={f.adminName} onChange={(e) => set("adminName", e.target.value)} /></Field>
             <Field label="E-mail"><Input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} /></Field>
             <Field label="Palavra-passe" hint="Mínimo 10 caracteres, com letras e números."><Input type="password" autoComplete="new-password" value={f.password} onChange={(e) => set("password", e.target.value)} /></Field>
@@ -257,26 +258,26 @@ export function Signup() {
         {step === 3 && (
           <>
             <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-              <dt className="muted">Empresa</dt><dd>{f.companyName}</dd>
-              <dt className="muted">Administrador</dt><dd>{f.adminName} · {f.email}</dd>
-              <dt className="muted">Modalidade</dt><dd>{f.mode === "trial" ? "Demonstração 14 dias" : "Subscrição paga"}</dd>
-              <dt className="muted">Plano</dt><dd>{plan?.name}</dd>
-              {f.mode === "paid" && <><dt className="muted">Módulos</dt><dd>{f.modules.join(", ")}</dd></>}
-              <dt className="muted">Limites</dt><dd>{sb ? `${sb.maxEmployees} funcionários · ${sb.maxUsers + f.extraUsers} utilizadores` : "a definir"}</dd>
-              {estimate !== null && <><dt className="muted">Valor</dt><dd>{fmtMoney(estimate, plan?.currency)} / {f.billingCycle === "yearly" ? "ano" : "mês"} <span className="text-xs muted">(valor de teste — sandbox)</span></dd></>}
+              <dt className="muted"><T>Empresa</T></dt><dd>{f.companyName}</dd>
+              <dt className="muted"><T>Administrador</T></dt><dd>{f.adminName} · {f.email}</dd>
+              <dt className="muted"><T>Modalidade</T></dt><dd>{f.mode === "trial" ? "Demonstração 14 dias" : "Subscrição paga"}</dd>
+              <dt className="muted"><T>Plano</T></dt><dd>{plan?.name}</dd>
+              {f.mode === "paid" && <><dt className="muted"><T>Módulos</T></dt><dd>{f.modules.join(", ")}</dd></>}
+              <dt className="muted"><T>Limites</T></dt><dd>{sb ? `${sb.maxEmployees} funcionários · ${sb.maxUsers + f.extraUsers} utilizadores` : "a definir"}</dd>
+              {estimate !== null && <><dt className="muted"><T>Valor</T></dt><dd>{fmtMoney(estimate, plan?.currency)} / {f.billingCycle === "yearly" ? "ano" : "mês"} <span className="text-xs muted">(valor de teste — sandbox)</span></dd></>}
             </dl>
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" checked={f.acceptTerms} onChange={(e) => set("acceptTerms", e.target.checked)} className="mt-0.5" />
-              <span>Aceito os <Link to="/legal/termos" className="underline" target="_blank">termos de serviço</Link> e a <Link to="/legal/privacidade" className="underline" target="_blank">política de privacidade</Link>.</span>
+              <span><T>Aceito os</T> <Link to="/legal/termos" className="underline" target="_blank"><T>termos de serviço</T></Link> e a <Link to="/legal/privacidade" className="underline" target="_blank"><T>política de privacidade</T></Link>.</span>
             </label>
           </>
         )}
         <div className="flex justify-between pt-2">
-          <Button variant="secondary" disabled={step === 0} onClick={() => setStep(step - 1)}>Voltar</Button>
-          {step < 3 ? <Button disabled={!canNext} onClick={() => setStep(step + 1)}>Continuar</Button> : <Button disabled={!canNext} loading={busy} onClick={submit}>{f.mode === "trial" ? "Criar demonstração" : "Criar e pagar"}</Button>}
+          <Button variant="secondary" disabled={step === 0} onClick={() => setStep(step - 1)}><T>Voltar</T></Button>
+          {step < 3 ? <Button disabled={!canNext} onClick={() => setStep(step + 1)}><T>Continuar</T></Button> : <Button disabled={!canNext} loading={busy} onClick={submit}>{f.mode === "trial" ? "Criar demonstração" : "Criar e pagar"}</Button>}
         </div>
       </div>
-      <p className="mt-4 text-center text-sm muted">Já tem conta? <Link to="/login" className="underline">Entrar</Link></p>
+      <p className="mt-4 text-center text-sm muted"><T>Já tem conta?</T> <Link to="/login" className="underline"><T>Entrar</T></Link></p>
     </div>
   );
 }
@@ -299,17 +300,17 @@ export function SandboxCheckout() {
     <AuthCard title="Pagamento (ambiente sandbox)" subtitle="Simulação do fornecedor de pagamentos. Nenhum valor real é cobrado.">
       {info.error ? <ErrorText error={info.error} /> : (
         <div className="space-y-4 text-sm">
-          <p>Fatura <strong>{info.data.invoice}</strong> · {info.data.company}</p>
+          <p><T>Fatura</T> <strong>{info.data.invoice}</strong> · {info.data.company}</p>
           <p className="text-2xl font-semibold">{fmtMoney(info.data.amount, info.data.currency)}</p>
           {done ? (
             <>
               <Alert tone={done === "succeeded" ? "success" : "error"}>{done === "succeeded" ? "Pagamento confirmado via webhook assinado. A subscrição foi atualizada." : "Pagamento recusado."}</Alert>
-              <Button onClick={() => nav("/app/billing")}>Voltar à subscrição</Button>
+              <Button onClick={() => nav("/app/billing")}><T>Voltar à subscrição</T></Button>
             </>
           ) : (
             <div className="flex gap-2">
-              <Button onClick={() => pay("succeeded")}>Pagar</Button>
-              <Button variant="secondary" onClick={() => pay("failed")}>Simular falha</Button>
+              <Button onClick={() => pay("succeeded")}><T>Pagar</T></Button>
+              <Button variant="secondary" onClick={() => pay("failed")}><T>Simular falha</T></Button>
             </div>
           )}
         </div>

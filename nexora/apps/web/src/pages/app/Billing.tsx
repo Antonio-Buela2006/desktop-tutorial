@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { T } from "../../lib/i18n";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { fmtDate, fmtMoney, fmtNum, newIdempotencyKey, post, useAction, useApi } from "../../lib/api";
@@ -49,32 +50,32 @@ export function Billing() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title="Plano atual" actions={<Badge tone={tone}>{lbl}</Badge>}>
           <p className="text-2xl font-semibold">{data.plan.name}</p>
-          <p className="text-sm muted">{fmtMoney(data.plan.priceMonthly, cur)} / mês {!data.plan.commercialConfirmed && <Badge tone="amber">valor de teste</Badge>}</p>
+          <p className="text-sm muted">{fmtMoney(data.plan.priceMonthly, cur)} / mês {!data.plan.commercialConfirmed && <Badge tone="amber"><T>valor de teste</T></Badge>}</p>
           <dl className="mt-3 space-y-1 text-sm">
-            {s.trialEndsAt && <div className="flex justify-between"><dt className="muted">Demonstração até</dt><dd>{fmtDate(s.trialEndsAt)}</dd></div>}
-            {s.currentPeriodEnd && <div className="flex justify-between"><dt className="muted">Período atual até</dt><dd>{fmtDate(s.currentPeriodEnd)}</dd></div>}
-            <div className="flex justify-between"><dt className="muted">Periodicidade</dt><dd>{s.billingCycle === "yearly" ? "Anual" : "Mensal"}</dd></div>
-            {s.moduleSwapWindowEndsAt && <div className="flex justify-between"><dt className="muted">Troca gratuita de módulos</dt><dd>{data.freeSwapWindow ? `até ${fmtDate(s.moduleSwapWindowEndsAt)}` : "terminada"}</dd></div>}
+            {s.trialEndsAt && <div className="flex justify-between"><dt className="muted"><T>Demonstração até</T></dt><dd>{fmtDate(s.trialEndsAt)}</dd></div>}
+            {s.currentPeriodEnd && <div className="flex justify-between"><dt className="muted"><T>Período atual até</T></dt><dd>{fmtDate(s.currentPeriodEnd)}</dd></div>}
+            <div className="flex justify-between"><dt className="muted"><T>Periodicidade</T></dt><dd>{s.billingCycle === "yearly" ? "Anual" : "Mensal"}</dd></div>
+            {s.moduleSwapWindowEndsAt && <div className="flex justify-between"><dt className="muted"><T>Troca gratuita de módulos</T></dt><dd>{data.freeSwapWindow ? `até ${fmtDate(s.moduleSwapWindowEndsAt)}` : "terminada"}</dd></div>}
           </dl>
           {manage && (
             <div className="mt-4 flex flex-wrap gap-2">
-              {s.status === "trial" || data.accessState === "canceled" || data.accessState === "expired" ? <Button onClick={() => setConvert(true)}>Converter para plano pago</Button> : s.status === "active" && <Button variant="secondary" onClick={() => setPlanModal(true)}>Alterar plano</Button>}
-              {s.status === "active" && !s.cancelAtPeriodEnd && <Button variant="ghost" onClick={async () => { if (await confirm("Cancelar subscrição", <>Mantém o acesso até <strong>{fmtDate(s.currentPeriodEnd)}</strong>. Depois, o acesso operacional é suspenso e pode exportar os seus dados durante o período de retenção.</>)) { await cancel.mutateAsync(undefined); toast("Cancelamento agendado."); } }}>Cancelar</Button>}
-              {s.cancelAtPeriodEnd && data.accessState !== "canceled" && <Button variant="secondary" onClick={() => resume.mutate(undefined)}>Retomar subscrição</Button>}
+              {s.status === "trial" || data.accessState === "canceled" || data.accessState === "expired" ? <Button onClick={() => setConvert(true)}><T>Converter para plano pago</T></Button> : s.status === "active" && <Button variant="secondary" onClick={() => setPlanModal(true)}><T>Alterar plano</T></Button>}
+              {s.status === "active" && !s.cancelAtPeriodEnd && <Button variant="ghost" onClick={async () => { if (await confirm("Cancelar subscrição", <>Mantém o acesso até <strong>{fmtDate(s.currentPeriodEnd)}</strong><T>. Depois, o acesso operacional é suspenso e pode exportar os seus dados durante o período de retenção.</T></>)) { await cancel.mutateAsync(undefined); toast("Cancelamento agendado."); } }}><T>Cancelar</T></Button>}
+              {s.cancelAtPeriodEnd && data.accessState !== "canceled" && <Button variant="secondary" onClick={() => resume.mutate(undefined)}><T>Retomar subscrição</T></Button>}
             </div>
           )}
         </Card>
         <Card title="Capacidade">
           <ul className="space-y-2 text-sm">
-            <li className="flex justify-between"><span className="muted">Funcionários</span><span>{data.usage.employees} / {data.limits.maxEmployees ?? "—"}</span></li>
-            <li className="flex justify-between"><span className="muted">Utilizadores</span><span>{data.usage.users} / {data.limits.maxUsers ?? "—"}</span></li>
-            <li className="flex justify-between"><span className="muted">Administradores secundários</span><span>{data.usage.secondaryAdmins} / {data.limits.maxSecondaryAdmins ?? "—"}</span></li>
-            <li className="flex justify-between"><span className="muted">Módulos (franquia)</span><span>{data.usage.modules} / {data.limits.includedModules ?? "—"}</span></li>
+            <li className="flex justify-between"><span className="muted"><T>Funcionários</T></span><span>{data.usage.employees} / {data.limits.maxEmployees ?? "—"}</span></li>
+            <li className="flex justify-between"><span className="muted"><T>Utilizadores</T></span><span>{data.usage.users} / {data.limits.maxUsers ?? "—"}</span></li>
+            <li className="flex justify-between"><span className="muted"><T>Administradores secundários</T></span><span>{data.usage.secondaryAdmins} / {data.limits.maxSecondaryAdmins ?? "—"}</span></li>
+            <li className="flex justify-between"><span className="muted"><T>Módulos (franquia)</T></span><span>{data.usage.modules} / {data.limits.includedModules ?? "—"}</span></li>
           </ul>
           {manage && s.status === "active" && (
             <div className="mt-4 flex items-end gap-2">
               <Field label="Utilizadores adicionais"><Input type="number" min={1} value={extraUsers} onChange={(e) => setExtraUsers(Math.max(1, +e.target.value))} className="w-24" /></Field>
-              <Button variant="secondary" loading={capacity.isPending} onClick={async () => { const r = await capacity.mutateAsync(extraUsers); setPayInv(r.invoice); }}>Comprar</Button>
+              <Button variant="secondary" loading={capacity.isPending} onClick={async () => { const r = await capacity.mutateAsync(extraUsers); setPayInv(r.invoice); }}><T>Comprar</T></Button>
             </div>
           )}
           {capacity.error && <ErrorText error={capacity.error} />}
@@ -82,7 +83,7 @@ export function Billing() {
         <Card title="Créditos de IA">
           <p className="text-2xl font-semibold">{fmtNum(data.aiWallet?.balance)}</p>
           <p className="text-sm muted">Franquia mensal: {fmtNum(data.aiWallet?.monthlyAllowance)}</p>
-          <p className="mt-2 text-xs muted">Nunca cobramos créditos adicionais sem a sua autorização explícita.</p>
+          <p className="mt-2 text-xs muted"><T>Nunca cobramos créditos adicionais sem a sua autorização explícita.</T></p>
           {manage && s.status !== "trial" && (
             <div className="mt-3 space-y-2">
               {data.aiCreditPacks.map((p: any) => <Button key={p.code} variant="secondary" size="sm" className="w-full" onClick={async () => { if (await confirm("Comprar créditos", `Autoriza a compra de ${p.credits} créditos por ${fmtMoney(p.price, cur)}?`, false)) { const r = await buyCredits.mutateAsync(p.code); setPayInv(r.invoice); } }}>{fmtNum(p.credits)} créditos · {fmtMoney(p.price, cur)}</Button>)}
@@ -91,18 +92,18 @@ export function Billing() {
         </Card>
       </div>
 
-      <Card title="Módulos" className="mt-4" actions={manage && s.status !== "trial" && ["active", "grace", "cancel_scheduled"].includes(data.accessState) && <Button size="sm" variant="secondary" onClick={() => setModModal(true)}>Alterar módulos</Button>}>
+      <Card title="Módulos" className="mt-4" actions={manage && s.status !== "trial" && ["active", "grace", "cancel_scheduled"].includes(data.accessState) && <Button size="sm" variant="secondary" onClick={() => setModModal(true)}><T>Alterar módulos</T></Button>}>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {data.modules.map((m: any) => (
             <div key={m.code} className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
               <div><p className="font-medium">{m.name}</p>{m.dependsOn.length > 0 && <p className="text-xs muted">Requer: {m.dependsOn.join(", ")}</p>}</div>
-              {m.tenantStatus === "active" ? <Badge tone="green">Ativo</Badge> : m.tenantStatus === "inactive" ? <Badge>Inativo (dados preservados)</Badge> : m.status === "active" ? <Badge tone="blue">Disponível</Badge> : <Badge>Em definição</Badge>}
+              {m.tenantStatus === "active" ? <Badge tone="green"><T>Ativo</T></Badge> : m.tenantStatus === "inactive" ? <Badge><T>Inativo (dados preservados)</T></Badge> : m.status === "active" ? <Badge tone="blue"><T>Disponível</T></Badge> : <Badge><T>Em definição</T></Badge>}
             </div>
           ))}
         </div>
       </Card>
 
-      <h2 className="mb-2 mt-6 font-semibold">Faturas</h2>
+      <h2 className="mb-2 mt-6 font-semibold"><T>Faturas</T></h2>
       {open.length > 0 && <div className="mb-2"><Alert tone="warning">{open.length} fatura(s) por pagar.</Alert></div>}
       <DataTable rows={data.invoices} columns={[
         { key: "number", header: "N.º", render: (r: any) => <span className="font-mono text-xs">{r.number}</span> },
@@ -113,8 +114,8 @@ export function Billing() {
         { key: "status", header: "Estado", render: (r: any) => <Badge tone={r.status === "paid" ? "green" : r.overdue ? "red" : "amber"}>{r.overdue ? "Vencida" : invStatus[r.status] ?? r.status}</Badge> },
         { key: "a", header: "", className: "text-right", render: (r: any) => (
           <div className="flex justify-end gap-2">
-            <a className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800" href={`/api/billing/invoices/${r.id}/pdf`}>PDF</a>
-            {["issued", "partially_paid"].includes(r.status) && manage && <Button size="sm" onClick={() => setPayInv(r)}>Pagar</Button>}
+            <a className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800" href={`/api/billing/invoices/${r.id}/pdf`}><T>PDF</T></a>
+            {["issued", "partially_paid"].includes(r.status) && manage && <Button size="sm" onClick={() => setPayInv(r)}><T>Pagar</T></Button>}
           </div>
         ) },
       ]} />
@@ -147,13 +148,13 @@ function PayModal({ invoice, providers, onClose }: { invoice: any; providers: Re
                 <option value="multicaixa_express" disabled={!providers.multicaixa_express}>Multicaixa Express {providers.multicaixa_express ? "" : "(em breve)"}</option>
               </Select>
             </Field>
-            <Button loading={pay.isPending} onClick={async () => { const r = await pay.mutateAsync({ provider, idempotencyKey: key }); if (r.checkoutUrl) nav(r.checkoutUrl); }}>Continuar</Button>
+            <Button loading={pay.isPending} onClick={async () => { const r = await pay.mutateAsync({ provider, idempotencyKey: key }); if (r.checkoutUrl) nav(r.checkoutUrl); }}><T>Continuar</T></Button>
           </>
         ) : (
           <>
-            <Alert>Referência: <strong>{res.reference}</strong></Alert>
+            <Alert><T>Referência:</T> <strong>{res.reference}</strong></Alert>
             <p className="muted">{res.instructions}</p>
-            <div className="flex justify-end"><Button onClick={onClose}>Fechar</Button></div>
+            <div className="flex justify-end"><Button onClick={onClose}><T>Fechar</T></Button></div>
           </>
         )}
       </div>
@@ -174,13 +175,13 @@ function PlanModal({ current, plans, onClose, onDone }: { current: any; plans: a
         {preview.error && <ErrorText error={preview.error} />}
         {p && (
           <>
-            <p><Badge tone={p.direction === "upgrade" ? "green" : "amber"}>{p.direction === "upgrade" ? "Upgrade" : "Downgrade"}</Badge> Ajuste proporcional: <strong>{fmtMoney(p.prorated, p.target.currency)}</strong> {p.prorated < 0 && "(crédito)"}</p>
+            <p><Badge tone={p.direction === "upgrade" ? "green" : "amber"}>{p.direction === "upgrade" ? "Upgrade" : "Downgrade"}</Badge> <T>Ajuste proporcional:</T> <strong>{fmtMoney(p.prorated, p.target.currency)}</strong> {p.prorated < 0 && "(crédito)"}</p>
             <p className="muted">Novos limites: {p.limits.maxEmployees ?? "—"} funcionários · {p.limits.maxUsers ?? "—"} utilizadores · {p.limits.includedModules ?? "—"} módulos</p>
             {p.violations.length > 0 && <Alert tone="warning"><ul className="list-disc pl-4">{p.violations.map((v: string) => <li key={v}>{v}</li>)}</ul><p className="mt-1">{p.policy}</p></Alert>}
           </>
         )}
         {apply.error && <ErrorText error={apply.error} />}
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button disabled={!p} loading={apply.isPending} onClick={async () => { const r = await apply.mutateAsync(code); onDone(r.invoice?.status === "issued" ? r.invoice : null); }}>Confirmar alteração</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button disabled={!p} loading={apply.isPending} onClick={async () => { const r = await apply.mutateAsync(code); onDone(r.invoice?.status === "issued" ? r.invoice : null); }}><T>Confirmar alteração</T></Button></div>
       </div>
     </Modal>
   );
@@ -205,9 +206,9 @@ function ModulesModal({ data, onClose, onDone }: { data: any; onClose: () => voi
           ))}
         </div>
         {p?.problems?.length > 0 && <Alert tone="warning"><ul className="list-disc pl-4">{p.problems.map((x: string) => <li key={x}>{x}</li>)}</ul></Alert>}
-        {p && !p.problems.length && <p>Diferença mensal: <strong>{fmtMoney(p.monthlyDelta, data.plan.currency)}</strong> · A pagar agora: <strong>{fmtMoney(p.prorated, data.plan.currency)}</strong>{p.freeSwap && " (troca gratuita)"}</p>}
+        {p && !p.problems.length && <p><T>Diferença mensal:</T> <strong>{fmtMoney(p.monthlyDelta, data.plan.currency)}</strong> <T>· A pagar agora:</T> <strong>{fmtMoney(p.prorated, data.plan.currency)}</strong>{p.freeSwap && " (troca gratuita)"}</p>}
         {apply.error && <ErrorText error={apply.error} />}
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button disabled={!p || p.problems.length > 0 || (!add.length && !remove.length)} loading={apply.isPending} onClick={async () => { const r = await apply.mutateAsync({ add, remove }); onDone(r.invoice?.status === "issued" ? r.invoice : null); }}>Aplicar</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button disabled={!p || p.problems.length > 0 || (!add.length && !remove.length)} loading={apply.isPending} onClick={async () => { const r = await apply.mutateAsync({ add, remove }); onDone(r.invoice?.status === "issued" ? r.invoice : null); }}><T>Aplicar</T></Button></div>
       </div>
     </Modal>
   );
@@ -225,9 +226,9 @@ function ConvertModal({ data, onClose, onDone }: { data: any; onClose: () => voi
           <Field label="Plano"><Select value={f.planCode} onChange={(e) => setF({ ...f, planCode: e.target.value })}>{data.plans.map((p: any) => <option key={p.code} value={p.code}>{p.name} · {fmtMoney(p.priceMonthly, p.currency)}/mês</option>)}</Select></Field>
           <Field label="Periodicidade"><Select value={f.billingCycle} onChange={(e) => setF({ ...f, billingCycle: e.target.value })}><option value="monthly">Mensal</option><option value="yearly">Anual</option></Select></Field>
         </div>
-        <fieldset><legend className="label">Módulos</legend><div className="grid gap-2 sm:grid-cols-2">{catalog.map((m: any) => <label key={m.code} className="flex items-center gap-2"><input type="checkbox" checked={f.modules.includes(m.code)} onChange={(e) => setF({ ...f, modules: e.target.checked ? [...f.modules, m.code, ...m.dependsOn.filter((d: string) => !f.modules.includes(d))] : f.modules.filter((x) => x !== m.code) })} />{m.name}</label>)}</div></fieldset>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={f.purgeDemoData} onChange={(e) => setF({ ...f, purgeDemoData: e.target.checked })} className="mt-0.5" /><span>Começar com dados limpos (remover os dados fictícios da demonstração após o pagamento). Recomendado para separar dados de demonstração e dados reais.</span></label>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={go.isPending} onClick={async () => onDone((await go.mutateAsync(f)).invoice)}>Emitir fatura e pagar</Button></div>
+        <fieldset><legend className="label"><T>Módulos</T></legend><div className="grid gap-2 sm:grid-cols-2">{catalog.map((m: any) => <label key={m.code} className="flex items-center gap-2"><input type="checkbox" checked={f.modules.includes(m.code)} onChange={(e) => setF({ ...f, modules: e.target.checked ? [...f.modules, m.code, ...m.dependsOn.filter((d: string) => !f.modules.includes(d))] : f.modules.filter((x) => x !== m.code) })} />{m.name}</label>)}</div></fieldset>
+        <label className="flex items-start gap-2"><input type="checkbox" checked={f.purgeDemoData} onChange={(e) => setF({ ...f, purgeDemoData: e.target.checked })} className="mt-0.5" /><span><T>Começar com dados limpos (remover os dados fictícios da demonstração após o pagamento). Recomendado para separar dados de demonstração e dados reais.</T></span></label>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={go.isPending} onClick={async () => onDone((await go.mutateAsync(f)).invoice)}><T>Emitir fatura e pagar</T></Button></div>
       </div>
     </Modal>
   );

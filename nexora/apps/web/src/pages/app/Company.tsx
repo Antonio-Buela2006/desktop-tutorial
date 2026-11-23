@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { T } from "../../lib/i18n";
 import { Plus, Pencil, Trash2, LogOut as ExitIcon, UserX, UserCheck, KeyRound, Paperclip, EyeOff } from "lucide-react";
 import { DocumentsModal } from "../../components/Documents";
 import { del, fmtDate, fmtDateTime, fmtMoney, post, put, useAction, useApi } from "../../lib/api";
@@ -44,7 +45,7 @@ export function Employees() {
   const salary = can(me, "employees.view_salary");
   return (
     <>
-      <PageHeader title="Funcionários" subtitle="Cadastro de pessoas da empresa — independente das contas de acesso." actions={can(me, "employees.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> Registar funcionário</Button>} />
+      <PageHeader title="Funcionários" subtitle="Cadastro de pessoas da empresa — independente das contas de acesso." actions={can(me, "employees.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> <T>Registar funcionário</T></Button>} />
       <Capacity limits={list.data?.limits} usage={list.data?.usage} />
       <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
         toolbar={<>
@@ -57,15 +58,15 @@ export function Employees() {
           { key: "department", header: "Departamento", render: (r: any) => r.department ?? "—" },
           ...(branches.data?.length ? [{ key: "branch", header: "Unidade", render: (r: any) => branches.data!.find((b) => b.id === r.branchId)?.name ?? "—" }] : []),
           ...(salary ? [{ key: "salary", header: "Salário", render: (r: any) => fmtMoney(r.salary, me.tenant.currency) }] : []),
-          { key: "account", header: "Conta", render: (r: any) => (r.account ? <Badge tone={r.account.status === "active" ? "green" : "gray"}>{r.account.status === "active" ? "Com acesso" : "Desativada"}</Badge> : <Badge>Sem conta</Badge>) },
-          { key: "status", header: "Estado", render: (r: any) => (r.status === "active" ? <Badge tone="green">Ativo</Badge> : <Badge>Saída {fmtDate(r.exitDate)}</Badge>) },
+          { key: "account", header: "Conta", render: (r: any) => (r.account ? <Badge tone={r.account.status === "active" ? "green" : "gray"}>{r.account.status === "active" ? "Com acesso" : "Desativada"}</Badge> : <Badge><T>Sem conta</T></Badge>) },
+          { key: "status", header: "Estado", render: (r: any) => (r.status === "active" ? <Badge tone="green"><T>Ativo</T></Badge> : <Badge>Saída {fmtDate(r.exitDate)}</Badge>) },
           {
             key: "a", header: "", className: "text-right", render: (r: any) => (
               <div className="flex justify-end gap-1">
                 <Button size="sm" variant="ghost" onClick={() => setDocs(r)} aria-label={`Documentos de ${r.fullName}`}><Paperclip className="h-4 w-4" /></Button>
                 {can(me, "employees.edit") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setEdit(r)} aria-label="Editar"><Pencil className="h-4 w-4" /></Button>}
                 {r.status === "active" && can(me, "employees.offboard") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setOffboard(r)} aria-label="Registar saída"><ExitIcon className="h-4 w-4" /></Button>}
-                {r.status === "exited" && !r.anonymizedAt && can(me, "employees.edit") && can(me, "employees.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label="Anonimizar dados pessoais" title="Anonimizar dados pessoais" onClick={async () => { if (await confirm("Anonimizar dados pessoais", <>O nome e o e-mail de <strong>{r.fullName}</strong> são substituídos de forma irreversível e os documentos vão para eliminação. Datas e função mantêm-se no histórico.</>)) { await anonymize.mutateAsync(r.id); toast("Dados pessoais anonimizados."); } }}><EyeOff className="h-4 w-4" /></Button>}
+                {r.status === "exited" && !r.anonymizedAt && can(me, "employees.edit") && can(me, "employees.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label="Anonimizar dados pessoais" title="Anonimizar dados pessoais" onClick={async () => { if (await confirm("Anonimizar dados pessoais", <>O nome e o e-mail de <strong>{r.fullName}</strong> <T>são substituídos de forma irreversível e os documentos vão para eliminação. Datas e função mantêm-se no histórico.</T></>)) { await anonymize.mutateAsync(r.id); toast("Dados pessoais anonimizados."); } }}><EyeOff className="h-4 w-4" /></Button>}
                 {can(me, "employees.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label="Eliminar" onClick={async () => { if (await confirm("Eliminar registo", `O registo de ${r.fullName} vai para a lixeira.`)) { await remove.mutateAsync(r.id); toast("Registo movido para a lixeira."); } }}><Trash2 className="h-4 w-4" /></Button>}
               </div>
             ),
@@ -103,7 +104,7 @@ function EmployeeForm({ value, salary, branches, onClose, onSaved }: { value: an
           {branches.length > 0 && <Field label="Unidade"><Select value={c.branchId ?? ""} onChange={(e) => set("branchId", e.target.value)}><option value="">—</option>{branches.filter((b) => b.isActive).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select></Field>}
           {salary && <Field label="Salário (sensível)"><Input type="number" min={0} value={c.salary ?? ""} onChange={(e) => set("salary", e.target.value)} /></Field>}
         </div>
-        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Guardar</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={save.isPending}><T>Guardar</T></Button></div>
       </form>
     </Modal>
   );
@@ -116,9 +117,9 @@ function OffboardForm({ value, onClose, onSaved }: { value: any | null; onClose:
     <Modal open={value !== null} onClose={onClose} title={`Registar saída · ${value?.fullName ?? ""}`}>
       <div className="space-y-3">
         {save.error && <ErrorText error={save.error} />}
-        <Alert tone="warning">Se o funcionário tiver conta, o acesso é revogado imediatamente (todas as sessões terminadas) e a vaga de utilizador é libertada. O histórico e a auditoria são preservados.</Alert>
+        <Alert tone="warning"><T>Se o funcionário tiver conta, o acesso é revogado imediatamente (todas as sessões terminadas) e a vaga de utilizador é libertada. O histórico e a auditoria são preservados.</T></Alert>
         <Field label="Data de saída"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button variant="danger" loading={save.isPending} onClick={async () => onSaved(await save.mutateAsync({ exitDate: date }))}>Confirmar saída</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button variant="danger" loading={save.isPending} onClick={async () => onSaved(await save.mutateAsync({ exitDate: date }))}><T>Confirmar saída</T></Button></div>
       </div>
     </Modal>
   );
@@ -142,18 +143,18 @@ export function UsersPage() {
   const w = me.subscription.caps.write;
   return (
     <>
-      <PageHeader title="Utilizadores" subtitle="Contas com acesso à Nexora, funções e permissões." actions={can(me, "users.invite") && <Button disabled={!w || full} onClick={() => setInvite(true)}><Plus className="h-4 w-4" /> Convidar</Button>} />
+      <PageHeader title="Utilizadores" subtitle="Contas com acesso à Nexora, funções e permissões." actions={can(me, "users.invite") && <Button disabled={!w || full} onClick={() => setInvite(true)}><Plus className="h-4 w-4" /> <T>Convidar</T></Button>} />
       <Capacity limits={data.limits} usage={data.usage} />
-      {full && <div className="mb-4"><Alert tone="warning">Atingiu o limite de utilizadores do plano. As contas existentes continuam a funcionar. Para criar novas, compre utilizadores adicionais ou faça upgrade em <a className="underline" href="/app/billing">Subscrição</a>.</Alert></div>}
+      {full && <div className="mb-4"><Alert tone="warning"><T>Atingiu o limite de utilizadores do plano. As contas existentes continuam a funcionar. Para criar novas, compre utilizadores adicionais ou faça upgrade em</T> <a className="underline" href="/app/billing"><T>Subscrição</T></a>.</Alert></div>}
       {(disable.error || enable.error) && <div className="mb-3"><ErrorText error={disable.error || enable.error} /></div>}
       <DataTable rows={data.users} rowKey={(r: any) => r.id}
         columns={[
           { key: "name", header: "Nome", render: (r: any) => <div><p className="font-medium">{r.user.name}</p><p className="text-xs muted">{r.user.email}</p></div> },
           { key: "level", header: "Nível", render: (r: any) => <Badge tone={r.level === "member" ? "gray" : "blue"}>{levelLabel[r.level]}</Badge> },
-          { key: "roles", header: "Funções", render: (r: any) => r.level === "primary_admin" ? <span className="text-xs muted">Todas as permissões</span> : r.roles.map((x: any) => <span key={x.roleId} className="mr-1"><Badge>{x.name}{x.validUntil ? ` até ${fmtDate(x.validUntil)}` : ""}</Badge></span>) },
-          { key: "branches", header: "Unidades", render: (r: any) => (r.branchIds?.length ? <Badge tone="amber">{r.branchIds.length} unidade(s)</Badge> : <span className="text-xs muted">Todas</span>) },
-          { key: "2fa", header: "2FA", render: (r: any) => (r.user.totpEnabled ? <Badge tone="green">Ativo</Badge> : <Badge tone="amber">Inativo</Badge>) },
-          { key: "status", header: "Estado", render: (r: any) => (r.status === "active" ? <Badge tone="green">Ativo</Badge> : <Badge>Desativado</Badge>) },
+          { key: "roles", header: "Funções", render: (r: any) => r.level === "primary_admin" ? <span className="text-xs muted"><T>Todas as permissões</T></span> : r.roles.map((x: any) => <span key={x.roleId} className="mr-1"><Badge>{x.name}{x.validUntil ? ` até ${fmtDate(x.validUntil)}` : ""}</Badge></span>) },
+          { key: "branches", header: "Unidades", render: (r: any) => (r.branchIds?.length ? <Badge tone="amber">{r.branchIds.length} unidade(s)</Badge> : <span className="text-xs muted"><T>Todas</T></span>) },
+          { key: "2fa", header: "2FA", render: (r: any) => (r.user.totpEnabled ? <Badge tone="green"><T>Ativo</T></Badge> : <Badge tone="amber"><T>Inativo</T></Badge>) },
+          { key: "status", header: "Estado", render: (r: any) => (r.status === "active" ? <Badge tone="green"><T>Ativo</T></Badge> : <Badge><T>Desativado</T></Badge>) },
           {
             key: "a", header: "", className: "text-right", render: (r: any) => r.level !== "primary_admin" && r.id !== me.membership.id && (
               <div className="flex justify-end gap-1">
@@ -167,7 +168,7 @@ export function UsersPage() {
       {data.invitations.length > 0 && (
         <Card title="Convites pendentes" className="mt-4">
           <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">{data.invitations.map((i: any) => (
-            <li key={i.id} className="flex items-center justify-between py-2"><span>{i.name} · {i.email} <span className="muted">(expira {fmtDate(i.expiresAt)})</span></span>{can(me, "users.invite") && <Button size="sm" variant="ghost" onClick={() => revokeInv.mutate(i.id)}>Revogar</Button>}</li>
+            <li key={i.id} className="flex items-center justify-between py-2"><span>{i.name} · {i.email} <span className="muted">(expira {fmtDate(i.expiresAt)})</span></span>{can(me, "users.invite") && <Button size="sm" variant="ghost" onClick={() => revokeInv.mutate(i.id)}><T>Revogar</T></Button>}</li>
           ))}</ul>
         </Card>
       )}
@@ -187,9 +188,9 @@ function InviteForm({ roles, onClose, onSaved }: { roles: any[]; onClose: () => 
     <Modal open onClose={onClose} title="Convidar utilizador">
       {link ? (
         <div className="space-y-3 text-sm">
-          <Alert tone="success">Convite criado. Em produção o link segue apenas por e-mail.</Alert>
+          <Alert tone="success"><T>Convite criado. Em produção o link segue apenas por e-mail.</T></Alert>
           <p className="break-all rounded bg-slate-100 p-2 font-mono text-xs dark:bg-slate-800">{link}</p>
-          <div className="flex justify-end"><Button onClick={() => onSaved(link)}>Fechar</Button></div>
+          <div className="flex justify-end"><Button onClick={() => onSaved(link)}><T>Fechar</T></Button></div>
         </div>
       ) : (
         <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); const r = await save.mutateAsync(f); if (r.devLink) setLink(r.devLink); else onSaved(); }}>
@@ -197,10 +198,10 @@ function InviteForm({ roles, onClose, onSaved }: { roles: any[]; onClose: () => 
           <Field label="Nome"><Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
           <Field label="E-mail"><Input type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
           {me.membership.level === "primary_admin" && <Field label="Nível"><Select value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}><option value="member">Membro</option><option value="secondary_admin">Administrador secundário</option></Select></Field>}
-          <fieldset><legend className="label">Funções</legend>
+          <fieldset><legend className="label"><T>Funções</T></legend>
             <div className="grid gap-1 sm:grid-cols-2">{roles.map((r) => <label key={r.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.roleIds.includes(r.id)} onChange={(e) => setF({ ...f, roleIds: e.target.checked ? [...f.roleIds, r.id] : f.roleIds.filter((x) => x !== r.id) })} />{r.name}</label>)}</div>
           </fieldset>
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Enviar convite</Button></div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={save.isPending}><T>Enviar convite</T></Button></div>
         </form>
       )}
     </Modal>
@@ -226,25 +227,25 @@ function AccessEditor({ member, roles, onClose, onSaved }: { member: any; roles:
         {(save.error || saveBranches.error) && <ErrorText error={save.error || saveBranches.error} />}
         {member.level === "member" && !!branchList.data?.length && (
           <section>
-            <h3 className="mb-1 text-sm font-semibold">Unidades</h3>
-            <p className="mb-2 text-xs muted">Sem nenhuma selecionada, o utilizador vê todas. Com unidades selecionadas, só vê e regista funcionários, vendas e finanças dessas unidades.</p>
+            <h3 className="mb-1 text-sm font-semibold"><T>Unidades</T></h3>
+            <p className="mb-2 text-xs muted"><T>Sem nenhuma selecionada, o utilizador vê todas. Com unidades selecionadas, só vê e regista funcionários, vendas e finanças dessas unidades.</T></p>
             <div className="flex flex-wrap gap-3 text-sm">{branchList.data.map((b) => <label key={b.id} className="flex items-center gap-1"><input type="checkbox" checked={branchIds.includes(b.id)} onChange={(e) => setBranchIds(e.target.checked ? [...branchIds, b.id] : branchIds.filter((x) => x !== b.id))} />{b.name} ({b.code})</label>)}</div>
           </section>
         )}
         <section>
-          <h3 className="mb-2 text-sm font-semibold">Funções (validade opcional para substituições temporárias)</h3>
+          <h3 className="mb-2 text-sm font-semibold"><T>Funções (validade opcional para substituições temporárias)</T></h3>
           <div className="space-y-2">{roles.map((r) => {
             const a = state.roles.find((x) => x.roleId === r.id);
             return (
               <div key={r.id} className="flex flex-wrap items-center gap-3 text-sm">
                 <label className="flex w-56 items-center gap-2"><input type="checkbox" checked={!!a} onChange={(e) => setState({ ...state, roles: e.target.checked ? [...state.roles, { roleId: r.id, validUntil: "" }] : state.roles.filter((x) => x.roleId !== r.id) })} />{r.name}</label>
-                {a && <label className="flex items-center gap-2 text-xs muted">até <input type="date" className="input w-40" value={a.validUntil} onChange={(e) => setState({ ...state, roles: state.roles.map((x) => (x.roleId === r.id ? { ...x, validUntil: e.target.value } : x)) })} /></label>}
+                {a && <label className="flex items-center gap-2 text-xs muted"><T>até</T> <input type="date" className="input w-40" value={a.validUntil} onChange={(e) => setState({ ...state, roles: state.roles.map((x) => (x.roleId === r.id ? { ...x, validUntil: e.target.value } : x)) })} /></label>}
               </div>
             );
           })}</div>
         </section>
         <section>
-          <h3 className="mb-2 text-sm font-semibold">Ajustes individuais</h3>
+          <h3 className="mb-2 text-sm font-semibold"><T>Ajustes individuais</T></h3>
           {state.overrides.map((o, i) => (
             <div key={i} className="mb-2 grid grid-cols-[1fr_110px_150px_auto] items-center gap-2">
               <Select value={o.permission} onChange={(e) => setState({ ...state, overrides: state.overrides.map((x, j) => (j === i ? { ...x, permission: e.target.value } : x)) })}>{perms.data?.map((p) => <option key={p.key} value={p.key}>{p.label} ({p.key})</option>)}</Select>
@@ -253,11 +254,11 @@ function AccessEditor({ member, roles, onClose, onSaved }: { member: any; roles:
               <Button size="sm" variant="ghost" onClick={() => setState({ ...state, overrides: state.overrides.filter((_, j) => j !== i) })} aria-label="Remover ajuste"><Trash2 className="h-4 w-4" /></Button>
             </div>
           ))}
-          <Button size="sm" variant="secondary" onClick={() => setState({ ...state, overrides: [...state.overrides, { permission: perms.data?.[0]?.key, effect: "grant", validUntil: "" }] })}><Plus className="h-4 w-4" /> Ajuste</Button>
+          <Button size="sm" variant="secondary" onClick={() => setState({ ...state, overrides: [...state.overrides, { permission: perms.data?.[0]?.key, effect: "grant", validUntil: "" }] })}><Plus className="h-4 w-4" /> <T>Ajuste</T></Button>
         </section>
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button loading={save.isPending || saveBranches.isPending} onClick={async () => { if (member.level === "member" && branchList.data?.length) await saveBranches.mutateAsync({ branchIds }); await save.mutateAsync({ roles: state.roles.map((r) => ({ roleId: r.roleId, validUntil: toDate(r.validUntil) })), overrides: state.overrides.map((o) => ({ permission: o.permission, effect: o.effect, validUntil: toDate(o.validUntil) })) }); onSaved(); }}>Guardar</Button>
+          <Button variant="secondary" onClick={onClose}><T>Cancelar</T></Button>
+          <Button loading={save.isPending || saveBranches.isPending} onClick={async () => { if (member.level === "member" && branchList.data?.length) await saveBranches.mutateAsync({ branchIds }); await save.mutateAsync({ roles: state.roles.map((r) => ({ roleId: r.roleId, validUntil: toDate(r.validUntil) })), overrides: state.overrides.map((o) => ({ permission: o.permission, effect: o.effect, validUntil: toDate(o.validUntil) })) }); onSaved(); }}><T>Guardar</T></Button>
         </div>
       </div>
     </Modal>
@@ -278,13 +279,13 @@ export function Roles() {
   const manage = can(me, "roles.manage") && me.subscription.caps.write;
   return (
     <>
-      <PageHeader title="Funções e permissões" subtitle="Funções predefinidas e personalizadas. Permissões granulares validadas no servidor." actions={manage && <Button onClick={() => setEdit({ name: "", description: "", permissions: [] })}><Plus className="h-4 w-4" /> Nova função</Button>} />
+      <PageHeader title="Funções e permissões" subtitle="Funções predefinidas e personalizadas. Permissões granulares validadas no servidor." actions={manage && <Button onClick={() => setEdit({ name: "", description: "", permissions: [] })}><Plus className="h-4 w-4" /> <T>Nova função</T></Button>} />
       {remove.error && <div className="mb-3"><ErrorText error={remove.error} /></div>}
       <div className="grid gap-3 md:grid-cols-2">
         {data!.map((r) => (
           <div key={r.id} className="card p-4">
             <div className="flex items-start justify-between gap-2">
-              <div><h2 className="font-semibold">{r.name} {r.isSystem && <Badge>Predefinida</Badge>}</h2><p className="text-sm muted">{r.description}</p></div>
+              <div><h2 className="font-semibold">{r.name} {r.isSystem && <Badge><T>Predefinida</T></Badge>}</h2><p className="text-sm muted">{r.description}</p></div>
               {manage && <div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setEdit(r)} aria-label="Editar"><Pencil className="h-4 w-4" /></Button>{!r.isSystem && <Button size="sm" variant="ghost" aria-label="Eliminar" onClick={async () => { if (await confirm("Eliminar função", r.name)) { await remove.mutateAsync(r.id); toast("Função eliminada."); } }}><Trash2 className="h-4 w-4" /></Button>}</div>}
             </div>
             <p className="mt-2 text-xs muted">{r.permissions.length} permissões · {r.members} atribuição(ões)</p>
@@ -316,13 +317,13 @@ function RoleForm({ role, perms, onClose, onSaved }: { role: any; perms: any[]; 
               {list.map((p) => (
                 <label key={p.key} className="flex items-center gap-2 py-0.5 text-sm">
                   <input type="checkbox" checked={f.permissions.includes(p.key)} onChange={(e) => setF({ ...f, permissions: e.target.checked ? [...f.permissions, p.key] : f.permissions.filter((x) => x !== p.key) })} />
-                  {p.label}{p.adminOnly && <Badge tone="amber">admin</Badge>}
+                  {p.label}{p.adminOnly && <Badge tone="amber"><T>admin</T></Badge>}
                 </label>
               ))}
             </fieldset>
           ))}
         </div>
-        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Guardar</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={save.isPending}><T>Guardar</T></Button></div>
       </form>
     </Modal>
   );
@@ -368,7 +369,7 @@ export function Settings() {
                 <Field label="Lixeira (dias)"><Input type="number" min={7} max={365} value={st.trashRetentionDays} onChange={(e) => setS("trashRetentionDays", e.target.value)} /></Field>
                 <Field label="Idioma por omissão"><Select value={f.defaultLocale} onChange={(e) => setF({ ...f, defaultLocale: e.target.value })}><option value="pt">Português</option><option value="en">English</option></Select></Field>
               </div>
-              {manage && <Button loading={save.isPending}>Guardar</Button>}
+              {manage && <Button loading={save.isPending}><T>Guardar</T></Button>}
             </fieldset>
           </form>
         </Card>
@@ -378,37 +379,37 @@ export function Settings() {
           {me.membership.level === "primary_admin" && <LegalHoldCard enabled={!!st.legalHold} />}
           {pending.data && (
             <Card title="Transferência de administração pendente">
-              <p className="text-sm">Foi-lhe proposta a administração principal desta empresa.</p>
+              <p className="text-sm"><T>Foi-lhe proposta a administração principal desta empresa.</T></p>
               {accept.error && <ErrorText error={accept.error} />}
-              <div className="mt-2 flex gap-2"><Input type="password" placeholder="Confirme a sua palavra-passe" value={acceptPw} onChange={(e) => setAcceptPw(e.target.value)} /><Button onClick={async () => { await accept.mutateAsync(pending.data.id); toast("É agora o administrador principal."); }}>Aceitar</Button></div>
+              <div className="mt-2 flex gap-2"><Input type="password" placeholder="Confirme a sua palavra-passe" value={acceptPw} onChange={(e) => setAcceptPw(e.target.value)} /><Button onClick={async () => { await accept.mutateAsync(pending.data.id); toast("É agora o administrador principal."); }}><T>Aceitar</T></Button></div>
             </Card>
           )}
           {me.membership.level === "primary_admin" && (
             <Card title="Transferir administração principal">
-              <p className="mb-2 text-sm muted">Processo seguro: requer a sua palavra-passe e a confirmação do destinatário. Fica auditado.</p>
+              <p className="mb-2 text-sm muted"><T>Processo seguro: requer a sua palavra-passe e a confirmação do destinatário. Fica auditado.</T></p>
               {doTransfer.error && <ErrorText error={doTransfer.error} />}
-              {doTransfer.isSuccess && <Alert tone="success">Pedido enviado. Aguarda confirmação do destinatário (72h).</Alert>}
+              {doTransfer.isSuccess && <Alert tone="success"><T>Pedido enviado. Aguarda confirmação do destinatário (72h).</T></Alert>}
               <div className="space-y-2">
                 <Select value={transfer.to} onChange={(e) => setTransfer({ ...transfer, to: e.target.value })}><option value="">Escolher utilizador…</option>{users.data?.users.filter((u: any) => u.status === "active" && u.level !== "primary_admin").map((u: any) => <option key={u.id} value={u.id}>{u.user.name}</option>)}</Select>
                 <Input type="password" placeholder="A sua palavra-passe" value={transfer.password} onChange={(e) => setTransfer({ ...transfer, password: e.target.value })} />
-                <Button variant="danger" disabled={!transfer.to || !transfer.password} onClick={() => doTransfer.mutate({ toMembershipId: transfer.to, password: transfer.password })}>Pedir transferência</Button>
+                <Button variant="danger" disabled={!transfer.to || !transfer.password} onClick={() => doTransfer.mutate({ toMembershipId: transfer.to, password: transfer.password })}><T>Pedir transferência</T></Button>
               </div>
             </Card>
           )}
           {can(me, "support.grant") && (
             <Card title="Acesso de suporte (excecional)">
-              <p className="mb-2 text-sm muted">Os técnicos Nexora não têm acesso livre aos seus dados. Autorize acesso só ao necessário, por tempo limitado. Tudo fica auditado.</p>
+              <p className="mb-2 text-sm muted"><T>Os técnicos Nexora não têm acesso livre aos seus dados. Autorize acesso só ao necessário, por tempo limitado. Tudo fica auditado.</T></p>
               {createGrant.error && <ErrorText error={createGrant.error} />}
               <div className="space-y-2">
                 <Input type="email" placeholder="E-mail do técnico Nexora" value={grant.platformAdminEmail} onChange={(e) => setGrant({ ...grant, platformAdminEmail: e.target.value })} />
                 <Input placeholder="Motivo (mín. 10 caracteres)" value={grant.reason} onChange={(e) => setGrant({ ...grant, reason: e.target.value })} />
                 <div className="flex flex-wrap gap-3 text-sm">{([["customers", "Clientes"], ["products", "Produtos"], ["sales_orders", "Vendas"], ["finance_transactions", "Finanças"], ["employees", "Funcionários (sem salários)"]] as const).map(([s, l]) => <label key={s} className="flex items-center gap-1"><input type="checkbox" checked={grant.scope.includes(s)} onChange={(e) => setGrant({ ...grant, scope: e.target.checked ? [...grant.scope, s] : grant.scope.filter((x) => x !== s) })} />{l}</label>)}</div>
-                <div className="flex items-center gap-2 text-sm">Duração <Input type="number" min={1} max={72} className="w-20" value={grant.hours} onChange={(e) => setGrant({ ...grant, hours: +e.target.value })} /> horas</div>
-                <Button onClick={async () => { await createGrant.mutateAsync(grant); toast("Acesso temporário autorizado."); }}>Autorizar</Button>
+                <div className="flex items-center gap-2 text-sm"><T>Duração</T> <Input type="number" min={1} max={72} className="w-20" value={grant.hours} onChange={(e) => setGrant({ ...grant, hours: +e.target.value })} /> <T>horas</T></div>
+                <Button onClick={async () => { await createGrant.mutateAsync(grant); toast("Acesso temporário autorizado."); }}><T>Autorizar</T></Button>
               </div>
               <ul className="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">{grants.data?.map((g) => {
                 const active = !g.revokedAt && new Date(g.endsAt) > new Date();
-                return <li key={g.id} className="flex items-center justify-between py-2"><span>{g.platformAdminEmail} · {g.scope.join(", ")} · até {fmtDateTime(g.endsAt)} {active ? <Badge tone="green">Ativo</Badge> : <Badge>Terminado</Badge>}</span>{active && <Button size="sm" variant="ghost" onClick={() => revokeGrant.mutate(g.id)}>Revogar</Button>}</li>;
+                return <li key={g.id} className="flex items-center justify-between py-2"><span>{g.platformAdminEmail} · {g.scope.join(", ")} · até {fmtDateTime(g.endsAt)} {active ? <Badge tone="green"><T>Ativo</T></Badge> : <Badge><T>Terminado</T></Badge>}</span>{active && <Button size="sm" variant="ghost" onClick={() => revokeGrant.mutate(g.id)}><T>Revogar</T></Button>}</li>;
               })}</ul>
             </Card>
           )}
@@ -429,13 +430,13 @@ function AlertsCard() {
     <Card title="Alertas inteligentes">
       <div className="space-y-2 text-sm">
         {save.error && <ErrorText error={save.error} />}
-        {save.isSuccess && <Alert tone="success">Configuração guardada.</Alert>}
-        <label className="flex items-center gap-2"><input type="checkbox" checked={f.lowStock} onChange={(e) => setF({ ...f, lowStock: e.target.checked })} />Stock no nível de reposição ou em rutura</label>
-        <label className="flex flex-wrap items-center gap-2"><input type="checkbox" checked={f.abnormalExpense} onChange={(e) => setF({ ...f, abnormalExpense: e.target.checked })} />Despesa acima de <Input type="number" min={1.5} max={20} step={0.5} className="w-20" value={f.abnormalExpenseMultiplier} onChange={(e) => setF({ ...f, abnormalExpenseMultiplier: +e.target.value })} aria-label="Multiplicador" /> × a média recente</label>
-        <label className="flex flex-wrap items-center gap-2"><input type="checkbox" checked={f.salesDrop} onChange={(e) => setF({ ...f, salesDrop: e.target.checked })} />Queda de vendas projetada de pelo menos <Input type="number" min={5} max={90} className="w-20" value={f.salesDropPct} onChange={(e) => setF({ ...f, salesDropPct: +e.target.value })} aria-label="Percentagem" /> %</label>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={f.emailCritical} onChange={(e) => setF({ ...f, emailCritical: e.target.checked })} />Enviar alertas críticos também por e-mail</label>
-        <p className="text-xs muted">Os destinatários são as pessoas com permissão sobre a área. Cada alerta é enviado no máximo uma vez por dia, e cada pessoa pode silenciá-los nas suas notificações.</p>
-        <Button size="sm" loading={save.isPending} onClick={() => save.mutate(f)}>Guardar alertas</Button>
+        {save.isSuccess && <Alert tone="success"><T>Configuração guardada.</T></Alert>}
+        <label className="flex items-center gap-2"><input type="checkbox" checked={f.lowStock} onChange={(e) => setF({ ...f, lowStock: e.target.checked })} /><T>Stock no nível de reposição ou em rutura</T></label>
+        <label className="flex flex-wrap items-center gap-2"><input type="checkbox" checked={f.abnormalExpense} onChange={(e) => setF({ ...f, abnormalExpense: e.target.checked })} /><T>Despesa acima de</T> <Input type="number" min={1.5} max={20} step={0.5} className="w-20" value={f.abnormalExpenseMultiplier} onChange={(e) => setF({ ...f, abnormalExpenseMultiplier: +e.target.value })} aria-label="Multiplicador" /> <T>× a média recente</T></label>
+        <label className="flex flex-wrap items-center gap-2"><input type="checkbox" checked={f.salesDrop} onChange={(e) => setF({ ...f, salesDrop: e.target.checked })} /><T>Queda de vendas projetada de pelo menos</T> <Input type="number" min={5} max={90} className="w-20" value={f.salesDropPct} onChange={(e) => setF({ ...f, salesDropPct: +e.target.value })} aria-label="Percentagem" /> %</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={f.emailCritical} onChange={(e) => setF({ ...f, emailCritical: e.target.checked })} /><T>Enviar alertas críticos também por e-mail</T></label>
+        <p className="text-xs muted"><T>Os destinatários são as pessoas com permissão sobre a área. Cada alerta é enviado no máximo uma vez por dia, e cada pessoa pode silenciá-los nas suas notificações.</T></p>
+        <Button size="sm" loading={save.isPending} onClick={() => save.mutate(f)}><T>Guardar alertas</T></Button>
       </div>
     </Card>
   );
@@ -451,17 +452,17 @@ function BranchesCard({ manage }: { manage: boolean }) {
       <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
         {data?.map((b) => (
           <li key={b.id} className="flex items-center justify-between gap-2 py-2">
-            <span><strong>{b.code}</strong> · {b.name} <span className="muted">({b.employees} func.)</span> {!b.isActive && <Badge>Inativa</Badge>}</span>
+            <span><strong>{b.code}</strong> · {b.name} <span className="muted">({b.employees} func.)</span> {!b.isActive && <Badge><T>Inativa</T></Badge>}</span>
             {manage && <Button size="sm" variant="ghost" onClick={() => toggle.mutate(b)}>{b.isActive ? "Desativar" : "Ativar"}</Button>}
           </li>
         ))}
-        {!data?.length && <li className="py-2 muted">Sem unidades registadas.</li>}
+        {!data?.length && <li className="py-2 muted"><T>Sem unidades registadas.</T></li>}
       </ul>
       {manage && (
         <form className="mt-3 grid gap-2 sm:grid-cols-[90px_1fr_auto]" onSubmit={async (e) => { e.preventDefault(); await create.mutateAsync({ ...f, address: f.address || undefined }); setF({ code: "", name: "", address: "" }); }}>
           <Input required placeholder="Código" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} aria-label="Código da unidade" />
           <Input required placeholder="Nome (ex.: Luanda — Sede)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} aria-label="Nome da unidade" />
-          <Button loading={create.isPending}>Adicionar</Button>
+          <Button loading={create.isPending}><T>Adicionar</T></Button>
           {create.error && <div className="sm:col-span-3"><ErrorText error={create.error} /></div>}
         </form>
       )}
@@ -473,8 +474,8 @@ function LegalHoldCard({ enabled }: { enabled: boolean }) {
   const [reason, setReason] = useState("");
   const save = useAction((v: any) => put("/api/company/legal-hold", v), [["settings"], ["me"]]);
   return (
-    <Card title="Retenção legal (legal hold)" actions={enabled ? <Badge tone="red">Ativa</Badge> : <Badge>Inativa</Badge>}>
-      <p className="mb-2 text-sm muted">Enquanto estiver ativa, nada é eliminado definitivamente: a lixeira não é purgada e não é possível anonimizar dados. Use-a em litígios, auditorias ou investigações.</p>
+    <Card title="Retenção legal (legal hold)" actions={enabled ? <Badge tone="red"><T>Ativa</T></Badge> : <Badge><T>Inativa</T></Badge>}>
+      <p className="mb-2 text-sm muted"><T>Enquanto estiver ativa, nada é eliminado definitivamente: a lixeira não é purgada e não é possível anonimizar dados. Use-a em litígios, auditorias ou investigações.</T></p>
       {save.error && <ErrorText error={save.error} />}
       <div className="flex flex-wrap gap-2"><Input placeholder="Motivo (fica auditado)" value={reason} onChange={(e) => setReason(e.target.value)} /><Button variant={enabled ? "secondary" : "danger"} disabled={reason.trim().length < 5} loading={save.isPending} onClick={async () => { await save.mutateAsync({ enabled: !enabled, reason }); setReason(""); }}>{enabled ? "Desativar" : "Ativar"}</Button></div>
     </Card>

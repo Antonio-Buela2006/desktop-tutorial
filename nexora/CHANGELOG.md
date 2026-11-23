@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0 — 2026-11-23
+- Interface em inglês: site público, entrada e registo, painel da empresa, IA e portal Nexora.
+- Dicionário central PT→EN aplicado automaticamente pelos componentes base: títulos, campos, botões, tabelas, opções, alertas e mensagens de erro por código.
+- Seletor de idioma no site público; preferência de idioma guardada na conta e aplicada ao entrar.
+
 ## 0.5.0 — 2026-11-23
 - Stock por unidade, com armazém central e transferências; o total da empresa mantém-se consistente.
 - As vendas de uma unidade só consomem o stock dessa unidade; as anulações repõem-no na mesma localização.

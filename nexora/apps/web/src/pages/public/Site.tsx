@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom";
+import { T, useI18n } from "../../lib/i18n";
 import { ArrowRight, BarChart3, Bot, Check, Building2, KeyRound, Layers, Lock, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { fmtMoney, fmtNum, useApi } from "../../lib/api";
 import { Badge, Loading } from "../../components/ui";
@@ -23,24 +24,25 @@ const features = [
 ];
 
 export function Home() {
+  const { tr } = useI18n();
   return (
     <>
       <Section className="pb-6 pt-16 sm:pt-24">
-        <Badge tone="blue"><Sparkles className="mr-1 h-3 w-3" /> Demonstração gratuita de 14 dias · sem cartão</Badge>
-        <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">A gestão da sua empresa num só lugar, com IA ao seu lado.</h1>
-        <p className="mt-4 max-w-2xl text-lg muted">A Nexora junta clientes, stock, vendas, finanças e pessoas numa plataforma web segura e modular, pensada para pequenas e médias empresas.</p>
+        <Badge tone="blue"><Sparkles className="mr-1 h-3 w-3" /> <T>Demonstração gratuita de 14 dias · sem cartão</T></Badge>
+        <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl"><T>A gestão da sua empresa num só lugar, com IA ao seu lado.</T></h1>
+        <p className="mt-4 max-w-2xl text-lg muted"><T>A Nexora junta clientes, stock, vendas, finanças e pessoas numa plataforma web segura e modular, pensada para pequenas e médias empresas.</T></p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link to="/registo" className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-3 font-medium text-white hover:bg-brand-700">Começar demonstração <ArrowRight className="h-4 w-4" /></Link>
-          <Link to="/funcionalidades" className="rounded-lg border border-slate-300 px-5 py-3 font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900">Ver funcionalidades</Link>
+          <Link to="/registo" className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-3 font-medium text-white hover:bg-brand-700"><T>Começar demonstração</T> <ArrowRight className="h-4 w-4" /></Link>
+          <Link to="/funcionalidades" className="rounded-lg border border-slate-300 px-5 py-3 font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"><T>Ver funcionalidades</T></Link>
         </div>
       </Section>
       <Section className="pt-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {features.slice(0, 4).map((f) => (
-            <div key={f.title} className="card p-5">
+            <div key={tr(f.title)} className="card p-5">
               <f.icon className="h-6 w-6 text-brand-600" aria-hidden />
-              <h2 className="mt-3 font-semibold">{f.title}</h2>
-              <p className="mt-1 text-sm muted">{f.text}</p>
+              <h2 className="mt-3 font-semibold">{tr(f.title)}</h2>
+              <p className="mt-1 text-sm muted">{tr(f.text)}</p>
             </div>
           ))}
         </div>
@@ -48,10 +50,10 @@ export function Home() {
       <Section>
         <div className="card grid gap-6 p-8 sm:grid-cols-[2fr_1fr] sm:items-center">
           <div>
-            <h2 className="text-2xl font-semibold">Pronto para experimentar?</h2>
-            <p className="mt-2 muted">A demonstração cria um ambiente isolado com dados fictícios, separado dos seus dados reais. Pode converter para um plano pago quando quiser.</p>
+            <h2 className="text-2xl font-semibold"><T>Pronto para experimentar?</T></h2>
+            <p className="mt-2 muted"><T>A demonstração cria um ambiente isolado com dados fictícios, separado dos seus dados reais. Pode converter para um plano pago quando quiser.</T></p>
           </div>
-          <Link to="/registo" className="justify-self-start rounded-lg bg-brand-600 px-5 py-3 font-medium text-white hover:bg-brand-700 sm:justify-self-end">Criar conta de empresa</Link>
+          <Link to="/registo" className="justify-self-start rounded-lg bg-brand-600 px-5 py-3 font-medium text-white hover:bg-brand-700 sm:justify-self-end"><T>Criar conta de empresa</T></Link>
         </div>
       </Section>
     </>
@@ -59,14 +61,15 @@ export function Home() {
 }
 
 export function Features() {
+  const { tr } = useI18n();
   return (
     <Section>
-      <H sub="Tudo o que está disponível hoje. Funcionalidades ainda não lançadas não são apresentadas como disponíveis.">Funcionalidades</H>
+      <H sub="Tudo o que está disponível hoje. Funcionalidades ainda não lançadas não são apresentadas como disponíveis."><T>Funcionalidades</T></H>
       <div className="grid gap-4 sm:grid-cols-2">
         {features.map((f) => (
-          <div key={f.title} className="card flex gap-4 p-5">
+          <div key={tr(f.title)} className="card flex gap-4 p-5">
             <f.icon className="h-6 w-6 shrink-0 text-brand-600" aria-hidden />
-            <div><h2 className="font-semibold">{f.title}</h2><p className="mt-1 text-sm muted">{f.text}</p></div>
+            <div><h2 className="font-semibold">{tr(f.title)}</h2><p className="mt-1 text-sm muted">{tr(f.text)}</p></div>
           </div>
         ))}
       </div>
@@ -78,14 +81,14 @@ export function Modules() {
   const { data, isLoading } = useApi<any[]>(["public-modules"], "/api/public/modules");
   return (
     <Section>
-      <H sub="A Nexora prevê 18 áreas de gestão. Os módulos disponíveis podem ser contratados já; os restantes estão em definição.">Módulos</H>
+      <H sub="A Nexora prevê 18 áreas de gestão. Os módulos disponíveis podem ser contratados já; os restantes estão em definição."><T>Módulos</T></H>
       {isLoading ? <Loading /> : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data?.map((m) => (
             <div key={m.code} className="card p-4">
               <div className="flex items-start justify-between gap-2">
                 <h2 className="font-semibold">{m.name}</h2>
-                {m.available ? <Badge tone="green">Disponível</Badge> : <Badge>Em definição</Badge>}
+                {m.available ? <Badge tone="green"><T>Disponível</T></Badge> : <Badge><T>Em definição</T></Badge>}
               </div>
               <p className="mt-1 text-sm muted">{m.description}</p>
               {m.dependsOn.length > 0 && <p className="mt-2 text-xs muted">Requer: {m.dependsOn.join(", ")}</p>}
@@ -98,18 +101,19 @@ export function Modules() {
 }
 
 export function Pricing() {
+  const { tr } = useI18n();
   const { data, isLoading } = useApi<any[]>(["public-plans"], "/api/public/plans");
   return (
     <Section>
-      <H sub="Três planos base, com utilizadores e módulos adicionais. Preços em definição: são publicados aqui quando aprovados.">Planos</H>
+      <H sub="Três planos base, com utilizadores e módulos adicionais. Preços em definição: são publicados aqui quando aprovados."><T>Planos</T></H>
       {isLoading ? <Loading /> : (
         <div className="grid gap-4 md:grid-cols-3">
           {data?.map((p, i) => (
             <div key={p.code} className={`card flex flex-col p-6 ${i === 1 ? "ring-2 ring-brand-500" : ""}`}>
               <h2 className="text-lg font-semibold">{p.name}</h2>
               <p className="mt-1 text-sm muted">{p.description}</p>
-              <p className="mt-4 text-3xl font-semibold">{p.priceMonthly !== null ? fmtMoney(p.priceMonthly, p.currency) : "Preço a definir"}</p>
-              {p.priceMonthly !== null && <p className="text-xs muted">por mês</p>}
+              <p className="mt-4 text-3xl font-semibold">{p.priceMonthly !== null ? fmtMoney(p.priceMonthly, p.currency) : tr("Preço a definir")}</p>
+              {p.priceMonthly !== null && <p className="text-xs muted"><T>por mês</T></p>}
               <ul className="mt-4 space-y-2 text-sm">
                 {[
                   ["Funcionários registados", p.maxEmployees],
@@ -117,21 +121,22 @@ export function Pricing() {
                   ["Módulos incluídos", p.includedModules],
                   ["Créditos de IA / mês", p.aiCreditsMonthly],
                 ].map(([l, v]) => (
-                  <li key={l as string} className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" />{l}: <strong>{v === null ? "a definir" : fmtNum(v as number)}</strong></li>
+                  <li key={l as string} className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" />{tr(l as string)}: <strong>{v === null ? tr("a definir") : fmtNum(v as number)}</strong></li>
                 ))}
-                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" />Utilizadores e módulos adicionais</li>
+                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /><T>Utilizadores e módulos adicionais</T></li>
               </ul>
-              <Link to={`/registo?plano=${p.code}`} className="mt-6 rounded-lg bg-brand-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-brand-700">Experimentar 14 dias</Link>
+              <Link to={`/registo?plano=${p.code}`} className="mt-6 rounded-lg bg-brand-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-brand-700"><T>Experimentar 14 dias</T></Link>
             </div>
           ))}
         </div>
       )}
-      <p className="mt-6 text-sm muted">Moeda, impostos e documentos fiscais estão em validação com consultoria local antes da comercialização.</p>
+      <p className="mt-6 text-sm muted"><T>Moeda, impostos e documentos fiscais estão em validação com consultoria local antes da comercialização.</T></p>
     </Section>
   );
 }
 
 export function SecurityPage() {
+  const { tr } = useI18n();
   const items = [
     ["Isolamento multiempresa", "Todas as operações aplicam o contexto da empresa no servidor; o identificador da empresa nunca é aceite do navegador."],
     ["Autenticação forte", "Palavra-passe com bloqueio após tentativas falhadas, 2FA com Google/Microsoft Authenticator e códigos de recuperação."],
@@ -144,9 +149,9 @@ export function SecurityPage() {
   ];
   return (
     <Section>
-      <H sub="Segurança e privacidade desde a conceção.">Segurança e privacidade</H>
-      <div className="grid gap-4 sm:grid-cols-2">{items.map(([t, d]) => <div key={t} className="card p-5"><h2 className="font-semibold">{t}</h2><p className="mt-1 text-sm muted">{d}</p></div>)}</div>
-      <p className="mt-6 text-sm muted">A conformidade legal com a legislação angolana de proteção de dados está em avaliação profissional; não declaramos conformidade antes dessa avaliação.</p>
+      <H sub="Segurança e privacidade desde a conceção."><T>Segurança e privacidade</T></H>
+      <div className="grid gap-4 sm:grid-cols-2">{items.map(([t, d]) => <div key={t} className="card p-5"><h2 className="font-semibold">{tr(t)}</h2><p className="mt-1 text-sm muted">{tr(d)}</p></div>)}</div>
+      <p className="mt-6 text-sm muted"><T>A conformidade legal com a legislação angolana de proteção de dados está em avaliação profissional; não declaramos conformidade antes dessa avaliação.</T></p>
     </Section>
   );
 }
@@ -154,10 +159,10 @@ export function SecurityPage() {
 export function About() {
   return (
     <Section>
-      <H sub="Uma plataforma para centralizar a gestão das PME, reduzir ferramentas dispersas e trazer IA útil e segura para o dia a dia.">Sobre a Nexora</H>
+      <H sub="Uma plataforma para centralizar a gestão das PME, reduzir ferramentas dispersas e trazer IA útil e segura para o dia a dia."><T>Sobre a Nexora</T></H>
       <div className="prose max-w-2xl text-sm muted">
-        <p>A Nexora nasce para o mercado angolano e lusófono, com uma arquitetura preparada para crescer para novos mercados, idiomas e aplicações móveis.</p>
-        <p className="mt-3">Princípios: segurança e privacidade desde a conceção, isolamento entre empresas, modularidade, transparência e evolução incremental testada.</p>
+        <p><T>A Nexora nasce para o mercado angolano e lusófono, com uma arquitetura preparada para crescer para novos mercados, idiomas e aplicações móveis.</T></p>
+        <p className="mt-3"><T>Princípios: segurança e privacidade desde a conceção, isolamento entre empresas, modularidade, transparência e evolução incremental testada.</T></p>
       </div>
     </Section>
   );
@@ -166,10 +171,10 @@ export function About() {
 export function Contact() {
   return (
     <Section>
-      <H sub="Fale connosco sobre planos, demonstrações ou suporte técnico.">Contacto e suporte</H>
+      <H sub="Fale connosco sobre planos, demonstrações ou suporte técnico."><T>Contacto e suporte</T></H>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="card p-5"><h2 className="font-semibold">Comercial</h2><p className="mt-1 text-sm muted">Contactos comerciais oficiais a publicar pela Nexora.</p></div>
-        <div className="card p-5"><h2 className="font-semibold">Suporte a clientes</h2><p className="mt-1 text-sm muted">Clientes com conta: use o painel da empresa. Se precisar que um técnico veja os seus dados, autorize um acesso temporário em Definições → Acesso de suporte.</p></div>
+        <div className="card p-5"><h2 className="font-semibold"><T>Comercial</T></h2><p className="mt-1 text-sm muted"><T>Contactos comerciais oficiais a publicar pela Nexora.</T></p></div>
+        <div className="card p-5"><h2 className="font-semibold"><T>Suporte a clientes</T></h2><p className="mt-1 text-sm muted"><T>Clientes com conta: use o painel da empresa. Se precisar que um técnico veja os seus dados, autorize um acesso temporário em Definições → Acesso de suporte.</T></p></div>
       </div>
     </Section>
   );
@@ -186,14 +191,15 @@ const faqs = [
   ["A equipa da Nexora vê os meus dados?", "Não livremente. Apenas com autorização expressa da sua empresa, por tempo e âmbito limitados, com registo de auditoria."],
 ];
 export function Faq() {
+  const { tr } = useI18n();
   return (
     <Section>
-      <H>Perguntas frequentes</H>
+      <H><T>Perguntas frequentes</T></H>
       <div className="space-y-2">
         {faqs.map(([q, a]) => (
           <details key={q} className="card group p-4">
-            <summary className="cursor-pointer font-medium">{q}</summary>
-            <p className="mt-2 text-sm muted">{a}</p>
+            <summary className="cursor-pointer font-medium">{tr(q)}</summary>
+            <p className="mt-2 text-sm muted">{tr(a)}</p>
           </details>
         ))}
       </div>
@@ -207,12 +213,13 @@ const legal: Record<string, [string, string[]]> = {
   cookies: ["Política de cookies", ["Usamos apenas cookies estritamente necessários: sessão autenticada (httpOnly) e preferências locais (idioma e tema)."]],
 };
 export function Legal() {
+  const { tr } = useI18n();
   const { doc = "termos" } = useParams();
   const [title, paras] = legal[doc] ?? legal.termos;
   return (
     <Section>
-      <H>{title}</H>
-      <div className="max-w-3xl space-y-3 text-sm">{paras.map((p) => <p key={p}>{p}</p>)}</div>
+      <H>{tr(title)}</H>
+      <div className="max-w-3xl space-y-3 text-sm">{paras.map((p) => <p key={p}>{tr(p)}</p>)}</div>
     </Section>
   );
 }

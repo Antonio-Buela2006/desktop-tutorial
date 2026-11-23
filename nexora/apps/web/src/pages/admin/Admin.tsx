@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { T } from "../../lib/i18n";
 import { Link, NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, fmtDate, fmtDateTime, fmtMoney, fmtNum, get, post, put, useAction, useApi } from "../../lib/api";
@@ -22,14 +23,14 @@ export function AdminLogin() {
         try { await post("/api/admin/auth/login", { email: f.email, password: f.password, code: f.code || undefined }); await qc.invalidateQueries({ queryKey: ["admin-me"] }); nav("/admin"); }
         catch (x) { if (x instanceof ApiError && x.code === "MFA_REQUIRED") setNeedCode(true); else setErr(x); }
       }}>
-        <Logo /><p className="text-sm font-semibold">Portal administrativo Nexora</p>
-        <p className="text-xs muted">Acesso restrito à equipa Nexora. Todas as ações são auditadas.</p>
+        <Logo /><p className="text-sm font-semibold"><T>Portal administrativo Nexora</T></p>
+        <p className="text-xs muted"><T>Acesso restrito à equipa Nexora. Todas as ações são auditadas.</T></p>
         {err ? <ErrorText error={err} /> : null}
         <Field label="E-mail"><Input type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
         <Field label="Palavra-passe"><Input type="password" required value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
         {needCode && <Field label="Código 2FA"><Input value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} /></Field>}
-        <Button className="w-full">Entrar</Button>
-        {import.meta.env.DEV && <p className="text-xs muted">Dev: admin@nexora.local / ChangeMe!2026</p>}
+        <Button className="w-full"><T>Entrar</T></Button>
+        {import.meta.env.DEV && <p className="text-xs muted"><T>Dev: admin@nexora.local / ChangeMe!2026</T></p>}
       </form>
     </div>
   );
@@ -46,9 +47,9 @@ export function AdminLayout() {
     <div className="min-h-screen">
       <header className="border-b border-slate-800 bg-slate-900 text-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-3">
-          <Logo className="text-white" /><Badge tone="amber">Portal Nexora</Badge>
-          <nav className="flex flex-wrap gap-1 text-sm">{items.map(([to, l]) => <NavLink key={to} end={to === "/admin"} to={to} className={({ isActive }) => cx("rounded px-2 py-1", isActive ? "bg-white/15" : "text-slate-300 hover:text-white")}>{l}</NavLink>)}</nav>
-          <div className="ml-auto flex items-center gap-2 text-sm">{me.email} <Badge>{me.role}</Badge>{!me.totpEnabled && <Link to="/admin/2fa" className="text-amber-300 underline">Ativar 2FA</Link>}<button className="underline" onClick={async () => { await post("/api/admin/auth/logout"); qc.clear(); nav("/admin/login"); }}>Sair</button></div>
+          <Logo className="text-white" /><Badge tone="amber"><T>Portal Nexora</T></Badge>
+          <nav className="flex flex-wrap gap-1 text-sm">{items.map(([to, l]) => <NavLink key={to} end={to === "/admin"} to={to} className={({ isActive }) => cx("rounded px-2 py-1", isActive ? "bg-white/15" : "text-slate-300 hover:text-white")}><T>{l}</T></NavLink>)}</nav>
+          <div className="ml-auto flex items-center gap-2 text-sm">{me.email} <Badge>{me.role}</Badge>{!me.totpEnabled && <Link to="/admin/2fa" className="text-amber-300 underline"><T>Ativar 2FA</T></Link>}<button className="underline" onClick={async () => { await post("/api/admin/auth/logout"); qc.clear(); nav("/admin/login"); }}><T>Sair</T></button></div>
         </div>
       </header>
       <main className="mx-auto max-w-7xl p-4 sm:p-6"><Outlet /></main>
@@ -72,12 +73,12 @@ export function AdminOverview() {
         </div>
       )}
       <DataTable rows={tenants.data} loading={tenants.isLoading} error={tenants.error} columns={[
-        { key: "name", header: "Empresa", render: (r: any) => <span className="font-medium">{r.name}{r.isDemo && <Badge tone="blue">demo</Badge>}</span> },
+        { key: "name", header: "Empresa", render: (r: any) => <span className="font-medium">{r.name}{r.isDemo && <Badge tone="blue"><T>demo</T></Badge>}</span> },
         { key: "plan", header: "Plano" },
         { key: "accessState", header: "Estado", render: (r: any) => <Badge tone={["active", "trial"].includes(r.accessState) ? "green" : ["grace", "pending_payment", "cancel_scheduled"].includes(r.accessState) ? "amber" : "red"}>{r.accessState}</Badge> },
         { key: "usage", header: "Uso", render: (r: any) => `${r.usage.users} util. · ${r.usage.employees} func. · ${r.usage.modules} mód.` },
         { key: "createdAt", header: "Registo", render: (r: any) => fmtDate(r.createdAt) },
-        { key: "a", header: "", render: (r: any) => r.accessState.startsWith("trial") && <Button size="sm" variant="secondary" onClick={() => setExtend(r)}>Prolongar demo</Button> },
+        { key: "a", header: "", render: (r: any) => r.accessState.startsWith("trial") && <Button size="sm" variant="secondary" onClick={() => setExtend(r)}><T>Prolongar demo</T></Button> },
       ]} />
       {extend && <ExtendTrial tenant={extend} onClose={() => setExtend(null)} />}
     </>
@@ -92,7 +93,7 @@ function ExtendTrial({ tenant, onClose }: { tenant: any; onClose: () => void }) 
       <div className="space-y-3">{go.error && <ErrorText error={go.error} />}
         <Field label="Dias"><Input type="number" min={1} max={30} value={f.days} onChange={(e) => setF({ ...f, days: +e.target.value })} /></Field>
         <Field label="Motivo (auditado)"><Input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
-        <Button onClick={async () => { await go.mutateAsync(f); onClose(); }}>Confirmar</Button>
+        <Button onClick={async () => { await go.mutateAsync(f); onClose(); }}><T>Confirmar</T></Button>
       </div>
     </Modal>
   );
@@ -106,16 +107,16 @@ export function AdminPlans() {
   return (
     <>
       <PageHeader title="Planos, limites e preços" subtitle="Configuração comercial sem alterar código. Cada alteração fica no histórico de auditoria. Valores vazios = a definir." />
-      <Alert tone="warning">PENDENTE: preços e limites atuais são valores de teste. Marque "confirmado" apenas após aprovação do proprietário do produto — só então são publicados no site.</Alert>
+      <Alert tone="warning"><T>PENDENTE: preços e limites atuais são valores de teste. Marque "confirmado" apenas após aprovação do proprietário do produto — só então são publicados no site.</T></Alert>
       <div className="mt-4 grid gap-4 md:grid-cols-3">{data!.map((p) => (
-        <Card key={p.id} title={p.name} actions={<Button size="sm" variant="secondary" onClick={() => setEdit(p)}>Editar</Button>}>
+        <Card key={p.id} title={p.name} actions={<Button size="sm" variant="secondary" onClick={() => setEdit(p)}><T>Editar</T></Button>}>
           <ul className="space-y-1 text-sm">
             <li>Mensal: {fmtMoney(p.priceMonthly, p.currency)} · Anual: {fmtMoney(p.priceYearly, p.currency)}</li>
             <li>Funcionários: {p.maxEmployees ?? "—"} · Utilizadores: {p.maxUsers ?? "—"}</li>
             <li>Admins secundários: {p.maxSecondaryAdmins ?? "—"} · Módulos: {p.includedModules ?? "—"}</li>
             <li>Créditos IA/mês: {p.aiCreditsMonthly ?? "—"}</li>
             <li>Extra utilizador: {fmtMoney(p.extraUserPrice, p.currency)} · Extra módulo: {fmtMoney(p.extraModulePrice, p.currency)}</li>
-            <li>{p.commercialConfirmed ? <Badge tone="green">Confirmado</Badge> : <Badge tone="amber">Por validar</Badge>} {!p.isActive && <Badge>Inativo</Badge>}</li>
+            <li>{p.commercialConfirmed ? <Badge tone="green"><T>Confirmado</T></Badge> : <Badge tone="amber"><T>Por validar</T></Badge>} {!p.isActive && <Badge><T>Inativo</T></Badge>}</li>
           </ul>
         </Card>
       ))}</div>
@@ -139,9 +140,9 @@ function PlanEditor({ plan, onClose }: { plan: any; onClose: () => void }) {
           {num("extraUserPrice", "Preço utilizador extra/mês")}{num("extraModulePrice", "Preço módulo extra/mês")}
         </div>
         <Field label="Descrição"><Input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.commercialConfirmed} onChange={(e) => setF({ ...f, commercialConfirmed: e.target.checked })} />Valores confirmados pelo proprietário do produto (publicar no site)</label>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.isActive} onChange={(e) => setF({ ...f, isActive: e.target.checked })} />Plano ativo</label>
-        <Button loading={save.isPending} onClick={async () => { const { name, description, priceMonthly, priceYearly, maxEmployees, maxUsers, maxSecondaryAdmins, includedModules, aiCreditsMonthly, extraUserPrice, extraModulePrice, commercialConfirmed, isActive, currency } = f; await save.mutateAsync({ name, description, priceMonthly, priceYearly, maxEmployees, maxUsers, maxSecondaryAdmins, includedModules, aiCreditsMonthly, extraUserPrice, extraModulePrice, commercialConfirmed, isActive, currency }); onClose(); }}>Guardar</Button>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.commercialConfirmed} onChange={(e) => setF({ ...f, commercialConfirmed: e.target.checked })} /><T>Valores confirmados pelo proprietário do produto (publicar no site)</T></label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.isActive} onChange={(e) => setF({ ...f, isActive: e.target.checked })} /><T>Plano ativo</T></label>
+        <Button loading={save.isPending} onClick={async () => { const { name, description, priceMonthly, priceYearly, maxEmployees, maxUsers, maxSecondaryAdmins, includedModules, aiCreditsMonthly, extraUserPrice, extraModulePrice, commercialConfirmed, isActive, currency } = f; await save.mutateAsync({ name, description, priceMonthly, priceYearly, maxEmployees, maxUsers, maxSecondaryAdmins, includedModules, aiCreditsMonthly, extraUserPrice, extraModulePrice, commercialConfirmed, isActive, currency }); onClose(); }}><T>Guardar</T></Button>
       </div>
     </Modal>
   );
@@ -157,12 +158,12 @@ export function AdminModules() {
       <PageHeader title="Catálogo de módulos" subtitle="Preparado para os 18 módulos. Nomes oficiais aguardam validação; módulos não implementados não podem ser ativados." />
       <DataTable rows={data} rowKey={(r: any) => r.code} columns={[
         { key: "code", header: "Código", render: (r: any) => <span className="font-mono text-xs">{r.code}</span> },
-        { key: "name", header: "Nome", render: (r: any) => <>{r.name} {r.provisional && <Badge tone="amber">provisório</Badge>}</> },
+        { key: "name", header: "Nome", render: (r: any) => <>{r.name} {r.provisional && <Badge tone="amber"><T>provisório</T></Badge>}</> },
         { key: "status", header: "Estado", render: (r: any) => <Badge tone={r.status === "active" ? "green" : "gray"}>{r.status}</Badge> },
         { key: "implemented", header: "Implementado", render: (r: any) => (r.implemented ? "Sim" : "Não") },
         { key: "dependsOn", header: "Dependências", render: (r: any) => r.dependsOn.join(", ") || "—" },
         { key: "priceMonthly", header: "Preço/mês", render: (r: any) => fmtMoney(r.priceMonthly) },
-        { key: "a", header: "", render: (r: any) => <Button size="sm" variant="secondary" onClick={() => setEdit(r)}>Editar</Button> },
+        { key: "a", header: "", render: (r: any) => <Button size="sm" variant="secondary" onClick={() => setEdit(r)}><T>Editar</T></Button> },
       ]} />
       {edit && <ModuleEditor mod={edit} onClose={() => setEdit(null)} />}
     </>
@@ -180,8 +181,8 @@ function ModuleEditor({ mod, onClose }: { mod: any; onClose: () => void }) {
         <Field label="Estado"><Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="active">Ativo (contratável)</option><option value="pending">Em definição</option><option value="inactive">Inativo</option></Select></Field>
         <Field label="Preço mensal (vazio = preço de módulo extra do plano)"><Input type="number" value={f.priceMonthly ?? ""} onChange={(e) => setF({ ...f, priceMonthly: e.target.value === "" ? null : +e.target.value })} /></Field>
         <Field label="Dependências (códigos separados por vírgula)"><Input value={f.dependsOn} onChange={(e) => setF({ ...f, dependsOn: e.target.value })} /></Field>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.provisional} onChange={(e) => setF({ ...f, provisional: e.target.checked })} />Nome provisório</label>
-        <Button onClick={async () => { await save.mutateAsync({ name: f.name, description: f.description, status: f.status, provisional: f.provisional, priceMonthly: f.priceMonthly, dependsOn: f.dependsOn.split(",").map((s: string) => s.trim()).filter(Boolean), minPlan: f.minPlan ?? null }); onClose(); }}>Guardar</Button>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.provisional} onChange={(e) => setF({ ...f, provisional: e.target.checked })} /><T>Nome provisório</T></label>
+        <Button onClick={async () => { await save.mutateAsync({ name: f.name, description: f.description, status: f.status, provisional: f.provisional, priceMonthly: f.priceMonthly, dependsOn: f.dependsOn.split(",").map((s: string) => s.trim()).filter(Boolean), minPlan: f.minPlan ?? null }); onClose(); }}><T>Guardar</T></Button>
       </div>
     </Modal>
   );
@@ -201,7 +202,7 @@ export function AdminPayments() {
         { key: "providerRef", header: "Referência", render: (r: any) => <span className="font-mono text-xs">{r.providerRef}</span> },
         { key: "amount", header: "Valor", render: (r: any) => fmtMoney(r.amount) },
         { key: "status", header: "Estado", render: (r: any) => <Badge tone={r.status === "confirmed" ? "green" : r.status === "failed" ? "red" : "amber"}>{r.status}</Badge> },
-        { key: "a", header: "", render: (r: any) => r.status === "pending" && <Button size="sm" onClick={() => setRec(r)}>Reconciliar</Button> },
+        { key: "a", header: "", render: (r: any) => r.status === "pending" && <Button size="sm" onClick={() => setRec(r)}><T>Reconciliar</T></Button> },
       ]} />
       {rec && <Reconcile payment={rec} onClose={() => setRec(null)} />}
     </>
@@ -216,7 +217,7 @@ function Reconcile({ payment, onClose }: { payment: any; onClose: () => void }) 
       <div className="space-y-3">{go.error && <ErrorText error={go.error} />}
         <Field label="Montante recebido"><Input type="number" value={f.amount} onChange={(e) => setF({ ...f, amount: +e.target.value })} /></Field>
         <Field label="Nota (extrato, data-valor…)"><Input value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
-        <Button onClick={async () => { await go.mutateAsync(f); onClose(); }}>Confirmar receção</Button>
+        <Button onClick={async () => { await go.mutateAsync(f); onClose(); }}><T>Confirmar receção</T></Button>
       </div>
     </Modal>
   );
@@ -232,11 +233,11 @@ export function AdminSettings() {
   if (error) return <ErrorState error={error} />;
   return (
     <>
-      <PageHeader title="Parâmetros globais" subtitle="Custos de IA, pacotes de créditos, retenção, impostos e fornecedores de pagamento." actions={<Button variant="secondary" loading={run.isPending} onClick={() => run.mutate(undefined)}>Executar jobs agora</Button>} />
+      <PageHeader title="Parâmetros globais" subtitle="Custos de IA, pacotes de créditos, retenção, impostos e fornecedores de pagamento." actions={<Button variant="secondary" loading={run.isPending} onClick={() => run.mutate(undefined)}><T>Executar jobs agora</T></Button>} />
       {run.data && <div className="mb-3"><Alert tone="success">Jobs executados: {JSON.stringify(run.data)}</Alert></div>}
       {save.error && <ErrorText error={save.error} />}
       <div className="grid gap-4 md:grid-cols-2">{data!.map((s) => (
-        <Card key={s.key} title={s.key} actions={<Button size="sm" onClick={() => { try { save.mutate({ key: s.key, value: JSON.parse(drafts[s.key]) }); } catch { alert("JSON inválido"); } }}>Guardar</Button>}>
+        <Card key={s.key} title={s.key} actions={<Button size="sm" onClick={() => { try { save.mutate({ key: s.key, value: JSON.parse(drafts[s.key]) }); } catch { alert("JSON inválido"); } }}><T>Guardar</T></Button>}>
           <textarea className="input font-mono text-xs" rows={8} value={drafts[s.key] ?? ""} onChange={(e) => setDrafts({ ...drafts, [s.key]: e.target.value })} aria-label={s.key} />
         </Card>
       ))}</div>
@@ -251,10 +252,10 @@ export function AdminSupport() {
   return (
     <>
       <PageHeader title="Suporte técnico excecional" subtitle="Só pode consultar conteúdo de uma empresa com uma concessão ativa, dentro do âmbito e do prazo. Cada consulta é auditada e visível para a empresa." />
-      {error ? <ErrorState error={error} /> : isLoading ? <Loading /> : !data?.length ? <Card><p className="text-sm muted">Nenhuma concessão de acesso para a sua conta.</p></Card> : (
+      {error ? <ErrorState error={error} /> : isLoading ? <Loading /> : !data?.length ? <Card><p className="text-sm muted"><T>Nenhuma concessão de acesso para a sua conta.</T></p></Card> : (
         <div className="space-y-2">{data.map((g) => (
           <div key={g.id} className="card p-4 text-sm">
-            <p className="font-medium">{g.tenant} {g.active ? <Badge tone="green">Ativa até {fmtDateTime(g.endsAt)}</Badge> : <Badge>Inativa</Badge>}</p>
+            <p className="font-medium">{g.tenant} {g.active ? <Badge tone="green">Ativa até {fmtDateTime(g.endsAt)}</Badge> : <Badge><T>Inativa</T></Badge>}</p>
             <p className="muted">Motivo: {g.reason}</p>
             {g.active && <div className="mt-2 flex flex-wrap gap-2">{g.scope.map((s: string) => <Button key={s} size="sm" variant="secondary" onClick={() => setView({ grant: g, dataset: s })}>{s}</Button>)}</div>}
           </div>
@@ -290,8 +291,8 @@ export function Admin2fa() {
   const enable = useAction((c: string) => post("/api/admin/2fa/enable", { code: c }), [["admin-me"]]);
   return (
     <Card title="Ativar 2FA na conta administrativa">
-      {enable.isSuccess ? <Alert tone="success">2FA ativado.</Alert> : !setup.data ? <Button onClick={() => setup.mutate(undefined)}>Gerar código QR</Button> : (
-        <div className="space-y-2 text-sm"><img src={setup.data.qr} alt="QR 2FA" className="h-44 w-44 bg-white p-2" />{enable.error && <ErrorText error={enable.error} />}<div className="flex gap-2"><Input value={code} onChange={(e) => setCode(e.target.value)} className="w-32" aria-label="Código" /><Button onClick={() => enable.mutate(code)}>Ativar</Button></div></div>
+      {enable.isSuccess ? <Alert tone="success"><T>2FA ativado.</T></Alert> : !setup.data ? <Button onClick={() => setup.mutate(undefined)}><T>Gerar código QR</T></Button> : (
+        <div className="space-y-2 text-sm"><img src={setup.data.qr} alt="QR 2FA" className="h-44 w-44 bg-white p-2" />{enable.error && <ErrorText error={enable.error} />}<div className="flex gap-2"><Input value={code} onChange={(e) => setCode(e.target.value)} className="w-32" aria-label="Código" /><Button onClick={() => enable.mutate(code)}><T>Ativar</T></Button></div></div>
       )}
     </Card>
   );

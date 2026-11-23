@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
+import { EN } from "./en";
 
 /** Internacionalização simples (PT/EN), preparada para mais idiomas. */
 const dict = {
@@ -22,7 +23,24 @@ const dict = {
 export type Lang = keyof typeof dict;
 type Key = keyof (typeof dict)["pt"];
 
-const Ctx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: Key) => string }>({ lang: "pt", setLang: () => {}, t: (k) => k });
+type TrFn = (s: string) => string;
+const Ctx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: Key) => string; tr: TrFn }>({ lang: "pt", setLang: () => {}, t: (k) => k, tr: (s) => s });
+
+/** Traduz um texto PT de interface; se não houver tradução, devolve o original. */
+export function translate(lang: Lang, s: string) {
+  if (lang === "pt" || !s) return s;
+  const trimmed = s.trim();
+  const hit = EN[trimmed];
+  return hit === undefined ? s : s.replace(trimmed, hit);
+}
+
+/** Traduz nós de texto simples (string ou arrays com strings); outros nós ficam intactos. */
+export function translateNode(lang: Lang, n: ReactNode): ReactNode {
+  if (lang === "pt") return n;
+  if (typeof n === "string") return translate(lang, n);
+  if (Array.isArray(n)) return n.map((c) => (typeof c === "string" ? translate(lang, c) : c));
+  return n;
+}
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => {
@@ -39,7 +57,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     } catch {}
     document.documentElement.lang = l;
   };
-  return <Ctx.Provider value={{ lang, setLang, t: (k) => dict[lang][k] ?? k }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ lang, setLang, t: (k) => dict[lang][k] ?? k, tr: (x) => translate(lang, x) }}>{children}</Ctx.Provider>;
 }
 
 export const useI18n = () => useContext(Ctx);
+
+/** Componente para texto estático em JSX: <T>Texto em português</T>. */
+export function T({ children }: { children: string }) {
+  const { lang } = useContext(Ctx);
+  return <>{translate(lang, children)}</>;
+}

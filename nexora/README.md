@@ -23,6 +23,7 @@ Plataforma web **multiempresa**, **modular** e **assistida por IA** para PME, im
 | Governação | Auditoria **encadeada por hash** com verificação, notificações, exportação CSV/JSON/XLSX/PDF com link temporário, documentos privados (local/S3) de funcionários e clientes, faturas em PDF, lixeira recuperável (30 dias, configurável), retenção legal de registos financeiros, acesso de suporte excecional (autorizado pela empresa, com prazo e âmbito) |
 | Empresa | Unidades/filiais com **âmbito por unidade** (utilizadores restritos só veem e registam funcionários, vendas e finanças das suas unidades — também no dashboard, IA, pesquisa, exportação e documentos), preferências de notificação (canais, silenciar alertas, horário de silêncio), alertas configuráveis (stock, despesas anormais, queda de vendas), retenção legal (*legal hold*), anonimização de ex-funcionários, guia de primeiros passos |
 | Operação | Antivírus ClamAV nos uploads (opcional), backups encriptados com **teste de restauro automático**, métricas Prometheus, e-mail SMTP, bloqueio automático de IP após falhas de autenticação |
+| Idiomas | Interface em **português e inglês** (dicionário central em `apps/web/src/lib/en.ts`, aplicado automaticamente pelos componentes base); preferência por utilizador guardada na conta; IA responde no idioma escolhido |
 | Portal Nexora | Login separado (2FA), métricas agregadas, empresas (só metadados), planos/preços/limites, catálogo dos 18 módulos, parâmetros globais, reconciliação de pagamentos, suporte, auditoria |
 
 ## Arquitetura
