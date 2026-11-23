@@ -8,7 +8,8 @@ Repositório de desenvolvimento de **Antonio-Buela2006**, com aplicações web c
 
 | Diretório           | Projeto              | Descrição                                                                                                                   | Estado              |
 | ------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `/`                 | **NEXORA**           | Plataforma de gestão empresarial com operações comerciais, contabilidade, recursos humanos, logística e o assistente WILLY. | Em desenvolvimento  |
+| `/nexora`           | **Nexora (plataforma SaaS)** | Nova implementação completa a partir da especificação mestra: API multi-tenant, RBAC, 2FA, subscrições, pagamentos, IA com aprovações, portal Nexora, testes. Ver [`nexora/README.md`](./nexora/README.md). | MVP técnico funcional |
+| `/`                 | **NEXORA (protótipo anterior)**           | Plataforma de gestão empresarial com operações comerciais, contabilidade, recursos humanos, logística e o assistente WILLY. | Em desenvolvimento  |
 | `/kultura-dispatch` | **KULTURA Dispatch** | Publicação editorial sobre cultura, música, tecnologia e opinião, com pesquisa, categorias e páginas de artigo.             | Protótipo funcional |
 | `/blog-colunistas`  | **Entrelinhas**      | Blog de colunistas centrado em opinião, leitura e apresentação editorial.                                                   | Protótipo funcional |
 

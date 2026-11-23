@@ -32,7 +32,8 @@ export const localProvider: AIProvider = {
     const out: string[] = [];
     const deny = en ? "You do not have access to this information (permissions or AI policy)." : "Não tem acesso a esta informação (permissões ou política de IA).";
 
-    if (/(stock|estoque|rutura|repor|low stock|inventory)/.test(m)) {
+    const isAdjust = /\bSKU-\d+\b/i.test(message) && /(ajust|adjust|acrescent|add|retir|remov)/.test(m);
+    if (!isAdjust && /(stock|estoque|rutura|repor|low stock|inventory)/.test(m)) {
       if (!has("list_low_stock")) return { text: deny, provider: "local", model: null };
       const r = await callTool("list_low_stock", {});
       const rows = (r.data as any[]) ?? [];

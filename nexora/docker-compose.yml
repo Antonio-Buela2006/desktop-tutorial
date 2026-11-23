@@ -1,0 +1,46 @@
+# Ambiente local reproduzível: PostgreSQL (obrigatório) e, opcionalmente, a stack completa.
+#   docker compose up -d db                 # só a base de dados (desenvolvimento no VS Code)
+#   docker compose --profile full up --build # API + web + worker em contentores
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nexora
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  api:
+    profiles: ["full"]
+    build: { context: ., dockerfile: infra/docker/api.Dockerfile }
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/nexora
+      DISABLE_INPROCESS_JOBS: "1"
+    depends_on: { db: { condition: service_healthy } }
+    ports: ["4000:4000"]
+
+  worker:
+    profiles: ["full"]
+    build: { context: ., dockerfile: infra/docker/api.Dockerfile }
+    command: ["node", "dist/worker.js"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/nexora
+    depends_on: [api]
+
+  web:
+    profiles: ["full"]
+    build: { context: ., dockerfile: infra/docker/web.Dockerfile }
+    depends_on: [api]
+    ports: ["8080:80"]
+
+volumes:
+  pgdata:
