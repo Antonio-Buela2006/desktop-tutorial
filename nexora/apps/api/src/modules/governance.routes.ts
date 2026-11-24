@@ -1,4 +1,5 @@
 /** Notificações, auditoria, lixeira (área recuperável), exportação e acesso de suporte. */
+import { asLocale, auditActionLabel } from "../core/messages.js";
 import { localizeNotification } from "../core/notify.js";
 import type { FastifyInstance } from "fastify";
 import { and, count, desc, eq, gt, ilike, isNotNull, isNull, lt, or } from "drizzle-orm";
@@ -83,7 +84,8 @@ export async function governanceRoutes(app: FastifyInstance) {
     );
     const items = await db.select().from(auditEvents).where(where).orderBy(desc(auditEvents.id)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
     const [{ n }] = await db.select({ n: count() }).from(auditEvents).where(where);
-    return { items, total: n };
+    const lc = asLocale(ctx.user.locale);
+    return { items: items.map((e) => ({ ...e, label: auditActionLabel(e.action, lc) })), total: n };
   });
 
   app.get("/api/audit/verify", async (req) => {

@@ -151,7 +151,7 @@ export function UsersPage() {
         columns={[
           { key: "name", header: "Nome", render: (r: any) => <div><p className="font-medium">{r.user.name}</p><p className="text-xs muted">{r.user.email}</p></div> },
           { key: "level", header: "Nível", render: (r: any) => <Badge tone={r.level === "member" ? "gray" : "blue"}>{levelLabel[r.level]}</Badge> },
-          { key: "roles", header: "Funções", render: (r: any) => r.level === "primary_admin" ? <span className="text-xs muted"><T>Todas as permissões</T></span> : r.roles.map((x: any) => <span key={x.roleId} className="mr-1"><Badge>{x.name}{x.validUntil ? ` até ${fmtDate(x.validUntil)}` : ""}</Badge></span>) },
+          { key: "roles", header: "Funções", render: (r: any) => r.level === "primary_admin" ? <span className="text-xs muted"><T>Todas as permissões</T></span> : r.roles.map((x: any) => <span key={x.roleId} className="mr-1"><Badge><T>{x.name}</T>{x.validUntil ? ` até ${fmtDate(x.validUntil)}` : ""}</Badge></span>) },
           { key: "branches", header: "Unidades", render: (r: any) => (r.branchIds?.length ? <Badge tone="amber">{r.branchIds.length} unidade(s)</Badge> : <span className="text-xs muted"><T>Todas</T></span>) },
           { key: "2fa", header: "2FA", render: (r: any) => (r.user.totpEnabled ? <Badge tone="green"><T>Ativo</T></Badge> : <Badge tone="amber"><T>Inativo</T></Badge>) },
           { key: "status", header: "Estado", render: (r: any) => (r.status === "active" ? <Badge tone="green"><T>Ativo</T></Badge> : <Badge><T>Desativado</T></Badge>) },
@@ -199,7 +199,7 @@ function InviteForm({ roles, onClose, onSaved }: { roles: any[]; onClose: () => 
           <Field label="E-mail"><Input type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
           {me.membership.level === "primary_admin" && <Field label="Nível"><Select value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}><option value="member">Membro</option><option value="secondary_admin">Administrador secundário</option></Select></Field>}
           <fieldset><legend className="label"><T>Funções</T></legend>
-            <div className="grid gap-1 sm:grid-cols-2">{roles.map((r) => <label key={r.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.roleIds.includes(r.id)} onChange={(e) => setF({ ...f, roleIds: e.target.checked ? [...f.roleIds, r.id] : f.roleIds.filter((x) => x !== r.id) })} />{r.name}</label>)}</div>
+            <div className="grid gap-1 sm:grid-cols-2">{roles.map((r) => <label key={r.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.roleIds.includes(r.id)} onChange={(e) => setF({ ...f, roleIds: e.target.checked ? [...f.roleIds, r.id] : f.roleIds.filter((x) => x !== r.id) })} /><T>{r.name}</T></label>)}</div>
           </fieldset>
           <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}><T>Cancelar</T></Button><Button loading={save.isPending}><T>Enviar convite</T></Button></div>
         </form>
@@ -238,7 +238,7 @@ function AccessEditor({ member, roles, onClose, onSaved }: { member: any; roles:
             const a = state.roles.find((x) => x.roleId === r.id);
             return (
               <div key={r.id} className="flex flex-wrap items-center gap-3 text-sm">
-                <label className="flex w-56 items-center gap-2"><input type="checkbox" checked={!!a} onChange={(e) => setState({ ...state, roles: e.target.checked ? [...state.roles, { roleId: r.id, validUntil: "" }] : state.roles.filter((x) => x.roleId !== r.id) })} />{r.name}</label>
+                <label className="flex w-56 items-center gap-2"><input type="checkbox" checked={!!a} onChange={(e) => setState({ ...state, roles: e.target.checked ? [...state.roles, { roleId: r.id, validUntil: "" }] : state.roles.filter((x) => x.roleId !== r.id) })} /><T>{r.name}</T></label>
                 {a && <label className="flex items-center gap-2 text-xs muted"><T>até</T> <input type="date" className="input w-40" value={a.validUntil} onChange={(e) => setState({ ...state, roles: state.roles.map((x) => (x.roleId === r.id ? { ...x, validUntil: e.target.value } : x)) })} /></label>}
               </div>
             );
@@ -285,10 +285,10 @@ export function Roles() {
         {data!.map((r) => (
           <div key={r.id} className="card p-4">
             <div className="flex items-start justify-between gap-2">
-              <div><h2 className="font-semibold">{r.name} {r.isSystem && <Badge><T>Predefinida</T></Badge>}</h2><p className="text-sm muted">{r.description}</p></div>
+              <div><h2 className="font-semibold"><T>{r.name}</T> {r.isSystem && <Badge><T>Predefinida</T></Badge>}</h2><p className="text-sm muted"><T>{r.description}</T></p></div>
               {manage && <div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setEdit(r)} aria-label="Editar"><Pencil className="h-4 w-4" /></Button>{!r.isSystem && <Button size="sm" variant="ghost" aria-label="Eliminar" onClick={async () => { if (await confirm("Eliminar função", r.name)) { await remove.mutateAsync(r.id); toast("Função eliminada."); } }}><Trash2 className="h-4 w-4" /></Button>}</div>}
             </div>
-            <p className="mt-2 text-xs muted">{r.permissions.length} permissões · {r.members} atribuição(ões)</p>
+            <p className="mt-2 text-xs muted">{r.permissions.length} <T>permissões</T> · {r.members} <T>atribuição(ões)</T></p>
           </div>
         ))}
       </div>

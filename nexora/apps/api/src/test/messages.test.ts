@@ -105,3 +105,38 @@ describe("documentos e ações da IA no idioma do leitor", () => {
     expect(nw).toEqual({ title: "Registar despesa", rows: [{ label: "Valor", value: "500" }], impact: "Afeta o resultado financeiro do período." });
   });
 });
+
+describe("auditoria e permissões no idioma do leitor", () => {
+  it("todas as ações de auditoria usadas no código têm descrição em PT e EN", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const { auditActionLabel } = await import("../core/messages.js");
+    const root = path.resolve(__dirname, "..");
+    const files: string[] = [];
+    const walk = (d: string) => fs.readdirSync(d, { withFileTypes: true }).forEach((e) => (e.isDirectory() ? e.name !== "test" && walk(path.join(d, e.name)) : e.name.endsWith(".ts") && files.push(path.join(d, e.name))));
+    walk(root);
+    const actions = new Set<string>(["finance.approved", "finance.rejected", "import.customers", "import.products"]); // ações com nome dinâmico
+    for (const f of files) for (const mt of fs.readFileSync(f, "utf8").matchAll(/action: "([a-z_]+\.[a-z_.]+)"/g)) actions.add(mt[1]);
+    expect(actions.size).toBeGreaterThan(80);
+    const missing = [...actions].filter((a) => !auditActionLabel(a, "pt") || !auditActionLabel(a, "en"));
+    expect(missing).toEqual([]);
+  });
+
+  it("a lista de auditoria e o catálogo de permissões seguem o idioma do utilizador", async () => {
+    const { PERMISSIONS } = await import("../core/permissions.js");
+    const { PERMISSION_LABELS_EN } = await import("../core/permissions.js");
+    expect(Object.keys(PERMISSION_LABELS_EN).sort()).toEqual(PERMISSIONS.map((p) => p.key).sort());
+    const t = await signupCompany();
+    await t.client.post("/api/crm/customers", { name: "Cliente Auditoria" });
+    const pt = await t.client.get("/api/audit?pageSize=50");
+    const ev = pt.body.items.find((e: any) => e.action === "customer.created");
+    expect(ev.label).toBe("Cliente criado");
+    expect((await t.client.get("/api/meta/permissions")).body.find((p: any) => p.key === "crm.view").label).toBe("Ver clientes");
+    await t.client.req("PATCH", "/api/auth/me", { locale: "en" });
+    const en = await t.client.get("/api/audit?pageSize=50");
+    const evEn = en.body.items.find((e: any) => e.action === "customer.created");
+    expect(evEn.label).toBe("Customer created");
+    expect(evEn.summary).toBe(ev.summary); // o resumo guardado não muda (cadeia de hash)
+    expect((await t.client.get("/api/meta/permissions")).body.find((p: any) => p.key === "crm.view").label).toBe("View customers");
+  });
+});

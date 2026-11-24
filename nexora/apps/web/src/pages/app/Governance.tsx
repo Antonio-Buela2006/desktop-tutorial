@@ -1,3 +1,4 @@
+import { useI18n } from "../../lib/i18n";
 import { useState } from "react";
 import { T } from "../../lib/i18n";
 import { useSearchParams } from "react-router-dom";
@@ -10,6 +11,7 @@ import { useList, useMeCtx } from "./Business";
 
 /* ============================== Auditoria ============================== */
 export function Audit() {
+  const { lang } = useI18n();
   const [actor, setActor] = useState("");
   const list = useList("audit", "/api/audit", actor ? { actorType: actor } : {});
   const verify = useApi<any>(["audit-verify"], "/api/audit/verify");
@@ -22,7 +24,8 @@ export function Audit() {
           { key: "createdAt", header: "Data", render: (r: any) => fmtDateTime(r.createdAt) },
           { key: "actorType", header: "Origem", render: (r: any) => <Badge tone={r.actorType === "ai" ? "blue" : r.actorType === "platform_admin" ? "amber" : "gray"}>{{ user: "Utilizador", ai: "IA", system: "Sistema", platform_admin: "Nexora" }[r.actorType as string]}</Badge> },
           { key: "action", header: "Ação", render: (r: any) => <span className="font-mono text-xs">{r.action}</span> },
-          { key: "summary", header: "Resumo" },
+          // Em inglês mostra a descrição traduzida da ação; o resumo original (imutável, em português) fica no título.
+          { key: "summary", header: "Resumo", render: (r: any) => (lang === "en" && r.label ? <span title={r.summary}>{r.label}</span> : r.summary) },
           { key: "ip", header: "IP", render: (r: any) => r.ip ?? "—" },
         ]} />
     </>

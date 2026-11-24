@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0 — 2026-11-24
+- Registo de auditoria em inglês: cada ação tem uma descrição em PT/EN (94 ações); o resumo original continua guardado sem alterações, porque faz parte da cadeia de hash, e fica visível ao passar o rato.
+- Nomes das permissões em inglês, aplicados no servidor.
+- Nomes e descrições das funções predefinidas em inglês (as funções criadas ou renomeadas pela empresa mantêm o nome escrito).
+- Teste que garante que todas as ações de auditoria usadas no código têm descrição nos dois idiomas.
+- 97 testes.
+
 ## 0.11.0 — 2026-11-24
 - Pré-visualização das ações da IA à espera de aprovação no idioma de quem a lê: título, campos com rótulos e impacto (as ações antigas, guardadas com chaves em português, também são apresentadas); ordem fixa dos campos; estados traduzidos.
 - A notificação de aprovação da IA passa a dizer quem pediu e o quê, em vez de mostrar dados técnicos.

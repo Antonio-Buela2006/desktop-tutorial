@@ -9,6 +9,58 @@ export type PermissionDef = { key: string; label: string; module?: string; write
 
 const p = (key: string, label: string, write: boolean, module?: string): PermissionDef => ({ key, label, write, module });
 
+/** Nomes das permissões em inglês (o catálogo abaixo está em português). */
+export const PERMISSION_LABELS_EN: Record<string, string> = {
+  "dashboard.view": "View dashboard",
+  "users.view": "View users",
+  "users.invite": "Invite users",
+  "users.edit": "Edit users and assigned roles",
+  "users.disable": "Disable users",
+  "roles.view": "View roles",
+  "roles.manage": "Create and edit roles and permissions",
+  "employees.view": "View employees",
+  "employees.create": "Add employees",
+  "employees.edit": "Edit employees",
+  "employees.delete": "Delete employees",
+  "employees.offboard": "Record employee departures",
+  "employees.view_salary": "View salaries (sensitive data)",
+  "employees.export": "Export employees",
+  "billing.view": "View subscription and invoices",
+  "billing.manage": "Change plan, modules and pay",
+  "settings.manage": "Configure company and security",
+  "audit.view": "View audit log",
+  "trash.manage": "Restore deleted records",
+  "support.grant": "Authorize temporary support access",
+  "ai.use": "Use the AI assistant",
+  "ai.configure": "Configure AI policies",
+  "ai.approve": "Approve actions proposed by the AI",
+  "reports.view": "View reports and forecasts",
+  "crm.view": "View customers",
+  "crm.create": "Create customers",
+  "crm.edit": "Edit customers",
+  "crm.delete": "Delete customers",
+  "crm.export": "Export customers",
+  "inventory.view": "View products and stock",
+  "inventory.create": "Create products",
+  "inventory.edit": "Edit products",
+  "inventory.delete": "Delete products",
+  "inventory.adjust": "Adjust stock",
+  "inventory.approve_transfer": "Approve stock transfers",
+  "inventory.export": "Export stock",
+  "sales.view": "View sales",
+  "sales.create": "Record sales",
+  "sales.cancel": "Cancel sales",
+  "sales.export": "Export sales",
+  "finance.view": "View financial transactions",
+  "finance.create": "Record transactions",
+  "finance.edit": "Edit transactions",
+  "finance.delete": "Delete transactions",
+  "finance.approve": "Approve financial transactions",
+  "finance.export": "Export transactions",
+};
+
+export const permissionLabel = (key: string, locale: string) => (locale === "en" ? PERMISSION_LABELS_EN[key] : undefined) ?? PERMISSIONS.find((x) => x.key === key)?.label ?? key;
+
 export const PERMISSIONS: PermissionDef[] = [
   // Núcleo da plataforma
   p("dashboard.view", "Ver dashboard", false),

@@ -20,7 +20,7 @@ import { auditBase, authorize, branchCondition, can, requireCtx, resolveBranchFo
 import { randomToken, sha256, verifyPassword } from "../core/crypto.js";
 import { AppError, badRequest, forbidden, notFound } from "../core/errors.js";
 import { pageQuery, parse, uuidParam } from "../core/http.js";
-import { ADMIN_ONLY, PERMISSIONS, PERMISSION_KEYS } from "../core/permissions.js";
+import { ADMIN_ONLY, PERMISSIONS, PERMISSION_KEYS, permissionLabel } from "../core/permissions.js";
 import { assertCapacity, limitsOf, usageOf } from "../core/tenantService.js";
 import { notifyMembership, sendMail } from "../core/notify.js";
 import { m, render, asLocale } from "../core/messages.js";
@@ -53,8 +53,8 @@ const employeeBody = z.object({
 
 export async function companyRoutes(app: FastifyInstance) {
   app.get("/api/meta/permissions", async (req) => {
-    requireCtx(req);
-    return PERMISSIONS.map((p) => ({ ...p, adminOnly: ADMIN_ONLY.has(p.key) }));
+    const ctx = requireCtx(req);
+    return PERMISSIONS.map((p) => ({ ...p, label: permissionLabel(p.key, ctx.user.locale), adminOnly: ADMIN_ONLY.has(p.key) }));
   });
 
   /* ---------------- Utilizadores (contas com acesso) ---------------- */
