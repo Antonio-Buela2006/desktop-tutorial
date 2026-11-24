@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.0 — 2026-11-24
+- Pré-visualização das ações da IA à espera de aprovação no idioma de quem a lê: título, campos com rótulos e impacto (as ações antigas, guardadas com chaves em português, também são apresentadas); ordem fixa dos campos; estados traduzidos.
+- A notificação de aprovação da IA passa a dizer quem pediu e o quê, em vez de mostrar dados técnicos.
+- PDFs (faturas, guias de transporte e relatórios exportados) no idioma de quem os descarrega.
+- Ao mudar de idioma, a interface volta a pedir os dados ao servidor.
+- 95 testes.
+
 ## 0.10.0 — 2026-11-24
 - Notificações e e-mails do servidor em português e inglês:
   - catálogo de mensagens com chaves e parâmetros (`core/messages.ts`);

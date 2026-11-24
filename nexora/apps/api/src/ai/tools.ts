@@ -4,6 +4,7 @@
  * sempre as permissões do utilizador que faz o pedido. O modelo nunca tem acesso
  * direto à base de dados.
  */
+import { m } from "../core/messages.js";
 import { and, asc, eq, gte, ilike, isNull, lte, sum } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
@@ -118,7 +119,7 @@ export const TOOLS: AITool[] = [
     costKey: "tool_write",
     schema: customerBody,
     jsonSchema: { type: "object", properties: { name: { type: "string" }, email: { type: "string" }, phone: { type: "string" } }, required: ["name"], additionalProperties: false },
-    preview: async (_ctx, i) => ({ acao: "Criar cliente", dados: i, impacto: "Novo registo em Clientes; reversível (pode ser eliminado)." }),
+    preview: async (_ctx, i) => ({ action: m("ai.action.create_customer"), name: i.name, email: i.email, phone: i.phone, impact: m("ai.impact.create_customer") }),
     run: (ctx, i) => createCustomer(ctx, i, "ai"),
   },
   {
@@ -133,7 +134,7 @@ export const TOOLS: AITool[] = [
     preview: async (ctx, i) => {
       const [p] = await db.select().from(products).where(and(eq(products.tenantId, ctx.tenant.id), eq(products.sku, i.sku), isNull(products.deletedAt)));
       if (!p) throw new Error("Produto não encontrado.");
-      return { acao: "Ajustar stock", produto: `${p.sku} · ${p.name}`, antes: p.stockQty, depois: p.stockQty + i.delta, motivo: i.reason };
+      return { action: m("ai.action.adjust_stock"), product: `${p.sku} · ${p.name}`, before: p.stockQty, after: p.stockQty + i.delta, reason: i.reason };
     },
     run: async (ctx, i) => {
       const [p] = await db.select().from(products).where(and(eq(products.tenantId, ctx.tenant.id), eq(products.sku, i.sku), isNull(products.deletedAt)));
@@ -150,7 +151,7 @@ export const TOOLS: AITool[] = [
     costKey: "tool_write",
     schema: z.object({ category: z.string().min(2).max(80), amount: z.number().positive(), description: z.string().max(300).default(""), occurredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
     jsonSchema: { type: "object", properties: { category: { type: "string" }, amount: { type: "number" }, description: { type: "string" }, occurredOn: { type: "string", description: "AAAA-MM-DD" } }, required: ["category", "amount", "occurredOn"], additionalProperties: false },
-    preview: async (_ctx, i) => ({ acao: "Registar despesa", categoria: i.category, valor: i.amount, data: i.occurredOn, descricao: i.description, impacto: "Afeta o resultado financeiro do período." }),
+    preview: async (_ctx, i) => ({ action: m("ai.action.record_expense"), category: i.category, amount: i.amount, date: i.occurredOn, description: i.description, impact: m("ai.impact.record_expense") }),
     run: (ctx, i, meta) => createFinanceTx(ctx, { kind: "expense", ...i }, "ai", meta?.approvedBy),
   },
 ];

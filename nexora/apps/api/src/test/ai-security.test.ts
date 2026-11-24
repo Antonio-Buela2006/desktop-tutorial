@@ -32,7 +32,9 @@ describe("IA segura", () => {
     const r = await t.client.post("/api/ai/chat", { message: "Ajustar stock do SKU-001: acrescentar 10 unidades" });
     expect(r.body.pendingActions).toHaveLength(1);
     const actionId = r.body.pendingActions[0].id;
-    expect(r.body.pendingActions[0].preview).toMatchObject({ antes: 40, depois: 50 });
+    expect(r.body.pendingActions[0].preview).toMatchObject({ before: 40, after: 50 });
+    expect(r.body.pendingActions[0].display.title).toBe("Ajustar stock");
+    expect(r.body.pendingActions[0].display.rows).toContainEqual({ label: "Depois", value: "50" });
     // o próprio requerente não pode aprovar
     expect((await t.client.post(`/api/ai/actions/${actionId}/decision`, { decision: "approve" })).status).toBe(403);
     const mgr = await addMember(t.client, ["gestor_stock"]);

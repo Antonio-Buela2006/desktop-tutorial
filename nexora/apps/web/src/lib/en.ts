@@ -344,4 +344,12 @@ export const EN: Record<string, string> = {
   "Guia pedida — aguarda aprovação.": "Order requested — awaiting approval.",
   "A guia segue para aprovação por outra pessoa. Ao ser aprovada, o stock sai da origem e fica em trânsito até ser confirmada a receção no destino.": "The order goes to someone else for approval. Once approved, stock leaves the origin and stays in transit until receipt is confirmed at the destination.",
   "Transferência imediata": "Immediate transfer",
+  "Pedido por": "Requested by",
+  "aprovações": "approvals",
+  "Pendente": "Pending",
+  "Executada": "Executed",
+  "Falhou": "Failed",
+  "Sensível": "Sensitive",
+  "Simples": "Simple",
+  "Impacto": "Impact",
 };

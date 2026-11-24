@@ -7,7 +7,7 @@ import { auditBase, authorize, type Ctx } from "../core/context.js";
 import { sha256 } from "../core/crypto.js";
 import { AppError, forbidden } from "../core/errors.js";
 import { notifyByPermission } from "../core/notify.js";
-import { m, render, asLocale } from "../core/messages.js";
+import { describePreview, isMsg, m, render, asLocale, type Locale } from "../core/messages.js";
 import { getSetting } from "../modules/billing.routes.js";
 import { getProvider, localProvider, type CallTool } from "./providers.js";
 import { toolByName, toolsFor, type AITool } from "./tools.js";
@@ -71,7 +71,7 @@ export async function chat(ctx: Ctx, message: string, locale: string) {
         calls.push({ tool: name, input: parsed.data, outcome: "executed" });
         return { ok: true, data };
       }
-      return await proposeAction(ctx, tool, parsed.data as Record<string, unknown>, reqRow.id, policy, calls);
+      return await proposeAction(ctx, tool, parsed.data as Record<string, unknown>, reqRow.id, policy, calls, asLocale(lang));
     } catch (e: any) {
       if (e instanceof AppError && e.code === "AI_CREDITS_EXHAUSTED") throw e;
       calls.push({ tool: name, input: parsed.data, outcome: "error" });
@@ -93,11 +93,11 @@ export async function chat(ctx: Ctx, message: string, locale: string) {
   await db.update(aiRequests).set({ response: result.text, toolCalls: calls, contextRefs: calls.map((c) => c.tool), model: result.model, credits, status, provider: result.provider }).where(eq(aiRequests.id, reqRow.id));
   await audit({ ...auditBase(ctx), action: "ai.request", entityType: "ai_request", entityId: reqRow.id, summary: `Pedido à IA (${result.provider}); ferramentas: ${calls.map((c) => `${c.tool}:${c.outcome}`).join(", ") || "nenhuma"}.`, metadata: { credits } });
   const pending = await db.select().from(aiActions).where(and(eq(aiActions.requestId, reqRow.id), eq(aiActions.status, "pending")));
-  return { requestId: reqRow.id, answer: result.text, provider: result.provider, toolCalls: calls, pendingActions: pending, creditsUsed: credits };
+  return { requestId: reqRow.id, answer: result.text, provider: result.provider, toolCalls: calls, pendingActions: pending.map((a) => ({ ...a, display: describePreview(a.preview as Record<string, unknown>, a.tool, asLocale(lang)) })), creditsUsed: credits };
 }
 
-async function proposeAction(ctx: Ctx, tool: AITool, input: Record<string, unknown>, requestId: string, policy: NonNullable<Awaited<ReturnType<typeof getPolicy>>>, calls: { tool: string; input: unknown; outcome: string }[]) {
-  const preview = tool.preview ? await tool.preview(ctx, input) : { acao: tool.name, dados: input };
+async function proposeAction(ctx: Ctx, tool: AITool, input: Record<string, unknown>, requestId: string, policy: NonNullable<Awaited<ReturnType<typeof getPolicy>>>, calls: { tool: string; input: unknown; outcome: string }[], locale: Locale = "pt") {
+  const preview = tool.preview ? await tool.preview(ctx, input) : { action: { key: tool.name }, data: input };
   const sensitivity = tool.sensitivity === "sensitive" ? "sensitive" : "simple";
   const auto = sensitivity === "simple" && policy.autonomy === "simple_auto";
   const required = tool.module === "finance" && policy.dualApprovalFinancial ? 2 : 1;
@@ -116,8 +116,8 @@ async function proposeAction(ctx: Ctx, tool: AITool, input: Record<string, unkno
     return { ok: true, data: r };
   }
   calls.push({ tool: tool.name, input, outcome: "pending_approval" });
-  await notifyByPermission(ctx.tenant.id, "ai.approve", { type: "ai.approval", severity: "warning", title: m("ai.approval.title"), body: JSON.stringify(preview).slice(0, 300), link: "/app/ai?tab=approvals" });
-  return { ok: true, pendingApproval: { actionId: action.id, preview } };
+  await notifyByPermission(ctx.tenant.id, "ai.approve", { type: "ai.approval", severity: "warning", title: m("ai.approval.title"), body: m("ai.approval.body", { requester: ctx.user.name, action: isMsg(preview.action) ? preview.action : tool.name }), link: "/app/ai?tab=approvals" });
+  return { ok: true, pendingApproval: { actionId: action.id, preview: describePreview(preview, tool.name, locale) } };
 }
 
 /** Executa uma ação aprovada exatamente uma vez (transição condicional de estado). */

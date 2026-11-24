@@ -1,3 +1,4 @@
+import { asLocale, describePreview } from "../core/messages.js";
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq, gte, sum } from "drizzle-orm";
 import { z } from "zod";
@@ -47,7 +48,7 @@ export async function aiRoutes(app: FastifyInstance) {
       .where(and(eq(aiActions.tenantId, ctx.tenant.id), status === "all" ? undefined : eq(aiActions.status, status), mine ? eq(aiActions.requestedBy, ctx.membership.id) : undefined))
       .orderBy(desc(aiActions.createdAt))
       .limit(100);
-    return rows.map((r) => ({ ...r.a, requester: r.requester, canDecide: can(ctx, "ai.approve") && !(r.a.sensitivity === "sensitive" && r.a.requestedBy === ctx.membership.id) }));
+    return rows.map((r) => ({ ...r.a, display: describePreview(r.a.preview as Record<string, unknown>, r.a.tool, asLocale(ctx.user.locale)), requester: r.requester, canDecide: can(ctx, "ai.approve") && !(r.a.sensitivity === "sensitive" && r.a.requestedBy === ctx.membership.id) }));
   });
 
   app.post("/api/ai/actions/:id/decision", async (req) => {

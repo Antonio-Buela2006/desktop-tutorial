@@ -34,7 +34,7 @@ import {
 import { activateSubscription, catalogDeps, getPlanByCode, limitsOf, nextInvoiceNumber, priceSubscription, usageOf, validateModuleSelection } from "../core/tenantService.js";
 import { purgeBusinessData } from "../core/demoData.js";
 import { config } from "../config.js";
-import { buildInvoicePdf } from "../core/documents.js";
+import { buildInvoicePdf, docLocale } from "../core/documents.js";
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
   const [r] = await db.select().from(platformSettings).where(eq(platformSettings.key, key));
@@ -304,7 +304,7 @@ export async function billingRoutes(app: FastifyInstance) {
     const { id } = parse(uuidParam, req.params);
     const [inv] = await db.select().from(invoices).where(and(eq(invoices.id, id), eq(invoices.tenantId, ctx.tenant.id)));
     if (!inv) throw notFound();
-    const pdf = await buildInvoicePdf(inv, { name: ctx.tenant.legalName || ctx.tenant.name, taxId: ctx.tenant.taxId });
+    const pdf = await buildInvoicePdf(inv, { name: ctx.tenant.legalName || ctx.tenant.name, taxId: ctx.tenant.taxId }, docLocale(ctx.user.locale));
     reply.header("content-type", "application/pdf").header("content-disposition", `attachment; filename="fatura-${inv.number}.pdf"`).header("cache-control", "private, no-store");
     return pdf;
   });

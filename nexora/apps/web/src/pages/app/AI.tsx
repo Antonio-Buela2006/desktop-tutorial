@@ -113,7 +113,10 @@ function Chat() {
   );
 }
 
+const ACTION_STATUS: Record<string, string> = { pending: "Pendente", executed: "Executada", rejected: "Rejeitada", failed: "Falhou", canceled: "Cancelada" };
+
 function Approvals() {
+  const { tr } = useI18n();
   const [status, setStatus] = useState("pending");
   const { data, isLoading, error } = useApi<any[]>(["ai-actions", status], `/api/ai/actions?status=${status}`);
   const decide = useAction(({ id, decision }: any) => post(`/api/ai/actions/${id}/decision`, { decision }), [["ai-actions"], ["dashboard"]]);
@@ -128,14 +131,15 @@ function Approvals() {
           <div key={a.id} className="card p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <p className="font-medium">{String(a.preview.acao ?? a.tool)} <Badge tone={a.sensitivity === "sensitive" ? "red" : "blue"}>{a.sensitivity === "sensitive" ? "Sensível" : "Simples"}</Badge></p>
-                <p className="text-xs muted">Pedido por {a.requester} · {fmtDateTime(a.createdAt)} · aprovações {a.approvals.length}/{a.requiredApprovals}</p>
+                <p className="font-medium">{a.display?.title ?? a.tool} <Badge tone={a.sensitivity === "sensitive" ? "red" : "blue"}>{a.sensitivity === "sensitive" ? "Sensível" : "Simples"}</Badge></p>
+                <p className="text-xs muted">{tr("Pedido por")} {a.requester} · {fmtDateTime(a.createdAt)} · {tr("aprovações")} {a.approvals.length}/{a.requiredApprovals}</p>
               </div>
-              <Badge tone={a.status === "executed" ? "green" : a.status === "pending" ? "amber" : "gray"}>{a.status}</Badge>
+              <Badge tone={a.status === "executed" ? "green" : a.status === "pending" ? "amber" : "gray"}>{ACTION_STATUS[a.status] ?? a.status}</Badge>
             </div>
             <dl className="mt-3 grid gap-x-4 gap-y-1 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-2 dark:bg-slate-800/50">
-              {Object.entries(a.preview).filter(([k]) => k !== "acao").map(([k, v]) => <div key={k} className="flex gap-2"><dt className="muted">{k}:</dt><dd className="break-all">{typeof v === "object" ? JSON.stringify(v) : String(v)}</dd></div>)}
+              {(a.display?.rows ?? []).map((r: { label: string; value: string }) => <div key={r.label} className="flex gap-2"><dt className="muted">{r.label}:</dt><dd className="break-all">{r.value}</dd></div>)}
             </dl>
+            {a.display?.impact && <p className="mt-2 text-xs muted">{tr("Impacto")}: {a.display.impact}</p>}
             {a.status === "pending" && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {a.canDecide && <><Button size="sm" onClick={() => decide.mutate({ id: a.id, decision: "approve" })}><Check className="h-4 w-4" /><T>Aprovar e executar</T></Button><Button size="sm" variant="secondary" onClick={() => decide.mutate({ id: a.id, decision: "reject" })}><X className="h-4 w-4" /><T>Rejeitar</T></Button></>}

@@ -36,6 +36,26 @@ const M: Record<string, Record<Locale, string>> = {
     pt: "Projeção {projected} vs média de {base} nos 3 meses anteriores. Estimativa, não certeza.",
     en: "Projection {projected} vs an average of {base} over the previous 3 months. An estimate, not a certainty.",
   },
+  "ai.approval.body": { pt: "{requester} pediu à IA: {action}.", en: "{requester} asked the AI to: {action}." },
+  // Pré-visualização das ações da IA
+  "ai.action.create_customer": { pt: "Criar cliente", en: "Create customer" },
+  "ai.action.adjust_stock": { pt: "Ajustar stock", en: "Adjust stock" },
+  "ai.action.record_expense": { pt: "Registar despesa", en: "Record expense" },
+  "ai.impact.create_customer": { pt: "Novo registo em Clientes; reversível (pode ser eliminado).", en: "New record in Customers; reversible (can be deleted)." },
+  "ai.impact.record_expense": { pt: "Afeta o resultado financeiro do período.", en: "Affects the financial result for the period." },
+  "ai.field.name": { pt: "Nome", en: "Name" },
+  "ai.field.email": { pt: "E-mail", en: "Email" },
+  "ai.field.phone": { pt: "Telefone", en: "Phone" },
+  "ai.field.product": { pt: "Produto", en: "Product" },
+  "ai.field.before": { pt: "Antes", en: "Before" },
+  "ai.field.after": { pt: "Depois", en: "After" },
+  "ai.field.reason": { pt: "Motivo", en: "Reason" },
+  "ai.field.category": { pt: "Categoria", en: "Category" },
+  "ai.field.amount": { pt: "Valor", en: "Amount" },
+  "ai.field.date": { pt: "Data", en: "Date" },
+  "ai.field.description": { pt: "Descrição", en: "Description" },
+  "ai.field.data": { pt: "Dados", en: "Data" },
+  "ai.field.impact": { pt: "Impacto", en: "Impact" },
   // Subscrição
   "billing.renewal.title": { pt: "Fatura de renovação emitida", en: "Renewal invoice issued" },
   "billing.renewal.body": { pt: "Vence em {date}.", en: "Due on {date}." },
@@ -82,4 +102,40 @@ export function render(v: string | Msg | null | undefined, locale: Locale = "pt"
     const p = v.params?.[k];
     return p === undefined ? `{${k}}` : typeof p === "object" ? render(p, locale) : String(p);
   });
+}
+
+/* -------- Pré-visualização das ações da IA -------- */
+/** Pré-visualização guardada: `action` e `impact` são mensagens; os restantes campos são valores. */
+export type ActionPreview = { action: Msg; impact?: Msg; [field: string]: unknown };
+
+// Ações antigas guardadas com chaves e textos em português.
+const LEGACY_FIELDS: Record<string, string> = { produto: "product", antes: "before", depois: "after", motivo: "reason", categoria: "category", valor: "amount", data: "date", descricao: "description", dados: "data" };
+const legacyText = (pt: unknown): Msg | string => {
+  const key = Object.keys(M).find((k) => (k.startsWith("ai.action.") || k.startsWith("ai.impact.")) && M[k].pt === pt);
+  return key ? { key } : String(pt ?? "");
+};
+
+const FIELD_ORDER = ["name", "email", "phone", "product", "before", "after", "category", "amount", "date", "description", "reason", "data"];
+const fieldRank = (f: string) => (FIELD_ORDER.includes(f) ? FIELD_ORDER.indexOf(f) : FIELD_ORDER.length);
+
+const fmtValue = (v: unknown): string =>
+  v === null || v === undefined || v === "" ? "—" : typeof v === "object" ? Object.entries(v as object).map(([k, x]) => `${k}: ${x}`).join(", ") : String(v);
+
+/** Pré-visualização pronta a mostrar no idioma do leitor: título, linhas (rótulo/valor) e impacto. */
+export function describePreview(preview: Record<string, unknown> | null | undefined, tool: string, locale: Locale) {
+  const p = preview ?? {};
+  const legacy = "acao" in p;
+  const title = legacy ? legacyText(p.acao) : isMsg(p.action) ? p.action : tool;
+  const impact = legacy ? (p.impacto ? legacyText(p.impacto) : undefined) : isMsg(p.impact) ? p.impact : undefined;
+  const rows = Object.entries(p)
+    .filter(([k]) => !["acao", "impacto", "action", "impact"].includes(k))
+    .map(([k, v]) => {
+      const field = legacy ? LEGACY_FIELDS[k] ?? k : k;
+      const label = M[`ai.field.${field}`] ? render({ key: `ai.field.${field}` }, locale) : field;
+      return { field, label, value: fmtValue(v) };
+    })
+    // o jsonb não preserva a ordem das chaves: ordem fixa de apresentação
+    .sort((a, b) => fieldRank(a.field) - fieldRank(b.field))
+    .map(({ label, value }) => ({ label, value }));
+  return { title: render(title, locale), rows, impact: impact ? render(impact, locale) : null };
 }

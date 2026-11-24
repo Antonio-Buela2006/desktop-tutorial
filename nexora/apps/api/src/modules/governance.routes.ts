@@ -22,7 +22,7 @@ import { randomToken, sha256 } from "../core/crypto.js";
 import { badRequest, forbidden, notFound } from "../core/errors.js";
 import { pageQuery, parse, toCsv, uuidParam } from "../core/http.js";
 import { MODULE_DATASETS } from "../core/permissions.js";
-import { buildReportPdf, buildXlsx } from "../core/documents.js";
+import { buildReportPdf, buildXlsx, docLocale } from "../core/documents.js";
 
 const TRASH_TABLES = {
   customers: { table: customers, perm: "crm.delete", label: (r: any) => r.name },
@@ -145,7 +145,7 @@ export async function governanceRoutes(app: FastifyInstance) {
       const data: Record<string, Record<string, unknown>[]> = {};
       for (const d of datasets) data[d] = await datasetRows(ctx, d);
       const meta = { company: ctx.tenant.name, exportedAt: new Date().toISOString() };
-      const buf = body.format === "xlsx" ? await buildXlsx(data, meta) : await buildReportPdf(data, meta);
+      const buf = body.format === "xlsx" ? await buildXlsx(data, meta) : await buildReportPdf(data, meta, docLocale(ctx.user.locale));
       content = buf.toString("base64");
       encoding = "base64";
       contentType = body.format === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf";

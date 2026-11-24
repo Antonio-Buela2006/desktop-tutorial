@@ -55,3 +55,53 @@ describe("migração de notificações antigas", () => {
     for (const k of keys) expect(MESSAGE_KEYS, k).toContain(k);
   });
 });
+
+describe("documentos e ações da IA no idioma do leitor", () => {
+  it("a guia de transporte em PDF segue o idioma de quem a descarrega", async () => {
+    const { getApp } = await import("./helpers.js");
+    const zlib = await import("node:zlib");
+    const t = await signupCompany({ plan: "professional" });
+    const lda = (await t.client.post("/api/company/branches", { code: "LDA", name: "Luanda" })).body.id;
+    const prod = (await t.client.post("/api/inventory/products", { sku: "DOC-1", name: "Produto", unitPrice: 10, initialStock: 5 })).body.id;
+    const o = (await t.client.post("/api/inventory/transfer-orders", { fromBranchId: null, toBranchId: lda, lines: [{ productId: prod, quantity: 1 }], reason: "Teste" })).body;
+    const app = await getApp();
+    // texto das páginas do PDF (streams comprimidos com deflate)
+    const text = async () => {
+      const raw = (await app.inject({ method: "GET", url: `/api/inventory/transfer-orders/${o.id}/guide`, headers: { cookie: t.client.cookie } })).rawPayload;
+      const out: string[] = [];
+      const s = raw.toString("latin1");
+      for (const mt of s.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+        try {
+          out.push(zlib.inflateSync(Buffer.from(mt[1], "latin1")).toString("latin1"));
+        } catch {}
+      }
+      // cada operador TJ tem o texto em grupos hexadecimais (separados por ajustes de kerning)
+      return out
+        .join("\n")
+        .split("\n")
+        .filter((l) => l.endsWith("TJ"))
+        .map((l) => [...l.matchAll(/<([0-9a-fA-F]+)>/g)].map((h) => Buffer.from(h[1], "hex").toString("latin1")).join(""))
+        .join("\n");
+    };
+    expect(await text()).toContain("Guia de transporte");
+    await t.client.req("PATCH", "/api/auth/me", { locale: "en" });
+    const en = await text();
+    expect(en).toContain("Delivery note");
+    expect(en).toContain("Central warehouse");
+  });
+
+  it("a pré-visualização de ações antigas (chaves em português) é apresentada no idioma pedido", async () => {
+    const { describePreview } = await import("../core/messages.js");
+    const legacy = { acao: "Ajustar stock", produto: "SKU-1 · Arroz", antes: 8, depois: 28, motivo: "Reposição" };
+    const en = describePreview(legacy, "adjust_stock", "en");
+    expect(en.title).toBe("Adjust stock");
+    expect(en.rows).toEqual([
+      { label: "Product", value: "SKU-1 · Arroz" },
+      { label: "Before", value: "8" },
+      { label: "After", value: "28" },
+      { label: "Reason", value: "Reposição" },
+    ]);
+    const nw = describePreview({ action: m("ai.action.record_expense"), amount: 500, impact: m("ai.impact.record_expense") }, "record_expense", "pt");
+    expect(nw).toEqual({ title: "Registar despesa", rows: [{ label: "Valor", value: "500" }], impact: "Afeta o resultado financeiro do período." });
+  });
+});

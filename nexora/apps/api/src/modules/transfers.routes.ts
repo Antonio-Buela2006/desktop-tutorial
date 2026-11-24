@@ -16,7 +16,7 @@ import { pageQuery, parse, uuidParam } from "../core/http.js";
 import { applyMove, availableAt, lockProduct } from "../core/inventory.js";
 import { notifyByPermission } from "../core/notify.js";
 import { m, render, asLocale } from "../core/messages.js";
-import { buildTransferGuidePdf } from "../core/documents.js";
+import { buildTransferGuidePdf, docLocale } from "../core/documents.js";
 
 /** Um utilizador restrito por unidade só vê guias em que a origem ou o destino é uma das suas unidades. */
 function scopeCondition(ctx: Ctx) {
@@ -170,8 +170,8 @@ export async function transferRoutes(app: FastifyInstance) {
     const { id } = parse(uuidParam, req.params);
     const t = await load(ctx, id);
     const brs = await db.select().from(branches).where(eq(branches.tenantId, ctx.tenant.id));
-    const name = (bid: string | null) => (bid ? (brs.find((b) => b.id === bid)?.name ?? "—") : "Armazém central");
-    const pdf = await buildTransferGuidePdf(t, { company: ctx.tenant.legalName || ctx.tenant.name, taxId: ctx.tenant.taxId, from: name(t.fromBranchId), to: name(t.toBranchId) });
+    const name = (bid: string | null) => (bid ? (brs.find((b) => b.id === bid)?.name ?? "—") : ctx.user.locale === "en" ? "Central warehouse" : "Armazém central");
+    const pdf = await buildTransferGuidePdf(t, { company: ctx.tenant.legalName || ctx.tenant.name, taxId: ctx.tenant.taxId, from: name(t.fromBranchId), to: name(t.toBranchId) }, docLocale(ctx.user.locale));
     reply.header("content-type", "application/pdf").header("content-disposition", `attachment; filename="guia-${t.number}.pdf"`).header("cache-control", "private, no-store");
     return pdf;
   });
