@@ -15,6 +15,7 @@ import { AppError, badRequest, forbidden, notFound } from "../core/errors.js";
 import { pageQuery, parse, uuidParam } from "../core/http.js";
 import { applyMove, availableAt, lockProduct } from "../core/inventory.js";
 import { notifyByPermission } from "../core/notify.js";
+import { m, render, asLocale } from "../core/messages.js";
 import { buildTransferGuidePdf } from "../core/documents.js";
 
 /** Um utilizador restrito por unidade só vê guias em que a origem ou o destino é uma das suas unidades. */
@@ -89,7 +90,7 @@ export async function transferRoutes(app: FastifyInstance) {
       await audit({ ...auditBase(ctx), action: "transfer.requested", entityType: "stock_transfer", entityId: t.id, summary: `Guia ${t.number} pedida (${lines.length} produto(s)): ${b.reason}` }, tx);
       return t;
     }).then(async (t) => {
-      await notifyByPermission(ctx.tenant.id, "inventory.approve_transfer", { type: "inventory.transfer_request", severity: "info", title: `Guia de transferência ${t.number} aguarda aprovação`, body: b.reason, link: "/app/products?tab=transfers", dedupeKey: `transfer:${t.id}` });
+      await notifyByPermission(ctx.tenant.id, "inventory.approve_transfer", { type: "inventory.transfer_request", severity: "info", title: m("inventory.transfer_request.title", { number: t.number }), body: b.reason, link: "/app/products?tab=transfers", dedupeKey: `transfer:${t.id}` });
       return t;
     });
   });

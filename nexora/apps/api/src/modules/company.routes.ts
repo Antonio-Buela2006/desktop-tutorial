@@ -23,6 +23,7 @@ import { pageQuery, parse, uuidParam } from "../core/http.js";
 import { ADMIN_ONLY, PERMISSIONS, PERMISSION_KEYS } from "../core/permissions.js";
 import { assertCapacity, limitsOf, usageOf } from "../core/tenantService.js";
 import { notifyMembership, sendMail } from "../core/notify.js";
+import { m, render, asLocale } from "../core/messages.js";
 import { config } from "../config.js";
 
 const isAdmin = (ctx: Ctx) => ctx.membership.level === "primary_admin" || ctx.membership.level === "secondary_admin";
@@ -114,7 +115,10 @@ export async function companyRoutes(app: FastifyInstance) {
       .values({ tenantId: ctx.tenant.id, email: body.email.toLowerCase(), name: body.name, roleIds: body.roleIds, level: body.level, employeeId: body.employeeId, tokenHash: sha256(token), invitedBy: ctx.membership.id, expiresAt: new Date(Date.now() + 7 * 86400_000) })
       .returning();
     const link = `${config.webOrigin}/invite?token=${token}`;
-    await sendMail(body.email, `Convite para ${ctx.tenant.name} na Nexora`, `Foi convidado(a) por ${ctx.user.name}. Aceite aqui (válido 7 dias): ${link}`);
+    {
+      const lc = asLocale(ctx.tenant.defaultLocale);
+      await sendMail(body.email, render(m("mail.invite.subject", { company: ctx.tenant.name }), lc), render(m("mail.invite.body", { name: ctx.user.name, link }), lc));
+    }
     await audit({ ...auditBase(ctx), action: "user.invited", entityType: "invitation", entityId: inv.id, summary: `Convite enviado para ${body.email}.`, metadata: { level: body.level, roles: roleRows.map((r) => r.code) } });
     // O link só é devolvido fora de produção (em produção segue apenas por e-mail).
     return { id: inv.id, ...(config.isProd ? {} : { devLink: link }) };
@@ -392,7 +396,7 @@ export async function companyRoutes(app: FastifyInstance) {
     if (target.status !== "active" || target.id === ctx.membership.id) throw badRequest("Destinatário inválido.");
     await db.update(adminTransfers).set({ status: "canceled" }).where(and(eq(adminTransfers.tenantId, ctx.tenant.id), eq(adminTransfers.status, "pending")));
     const [t] = await db.insert(adminTransfers).values({ tenantId: ctx.tenant.id, fromMembershipId: ctx.membership.id, toMembershipId: target.id, expiresAt: new Date(Date.now() + 72 * 3600_000) }).returning();
-    await notifyMembership(ctx.tenant.id, target.id, { type: "ownership.transfer", severity: "warning", title: "Pedido de transferência de administração principal", body: `${ctx.user.name} pediu para lhe transferir a administração principal. Confirme em Definições.`, link: "/app/settings" });
+    await notifyMembership(ctx.tenant.id, target.id, { type: "ownership.transfer", severity: "warning", title: m("ownership.transfer.title"), body: m("ownership.transfer.body", { name: ctx.user.name }), link: "/app/settings" });
     await audit({ ...auditBase(ctx), action: "ownership.transfer_requested", entityType: "admin_transfer", entityId: t.id, summary: "Pedido de transferência de titularidade iniciado." });
     return { id: t.id };
   });

@@ -217,7 +217,7 @@ export function AppLayout() {
           <button className="rounded p-1.5 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Abrir menu"><Menu className="h-5 w-5" /></button>
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-1">
-            <select aria-label="Idioma" className="rounded-md border-0 bg-transparent px-1 py-1 text-xs" value={lang} onChange={(e) => { setLang(e.target.value as any); api("/api/auth/me", { method: "PATCH", body: { locale: e.target.value } }).catch(() => {}); }}>
+            <select aria-label="Idioma" className="rounded-md border-0 bg-transparent px-1 py-1 text-xs" value={lang} onChange={(e) => { setLang(e.target.value as any); api("/api/auth/me", { method: "PATCH", body: { locale: e.target.value } }).then(() => { qc.invalidateQueries({ queryKey: ["notifications"] }); qc.invalidateQueries({ queryKey: ["me"] }); }).catch(() => {}); }}>
               <option value="pt">PT</option><option value="en">EN</option>
             </select>
             <button onClick={toggle} className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={dark ? "Modo claro" : "Modo escuro"}>{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0 — 2026-11-24
+- Notificações e e-mails do servidor em português e inglês:
+  - catálogo de mensagens com chaves e parâmetros (`core/messages.ts`);
+  - cada notificação é apresentada no idioma de quem a lê e acompanha a mudança de idioma;
+  - e-mails no idioma do destinatário (convites no idioma predefinido da empresa);
+  - as notificações antigas com título reconhecível foram convertidas.
+- 93 testes (catálogo completo nos dois idiomas com os mesmos parâmetros; a mesma notificação em PT e EN para leitores diferentes).
+
 ## 0.9.0 — 2026-11-24
 - Row-Level Security no PostgreSQL como segunda barreira de isolamento entre empresas (ADR-0003):
   - papel `nexora_tenant` sem `BYPASSRLS` e política em todas as tabelas com `tenant_id` (e em `tenants`), aplicada a leitura e escrita;

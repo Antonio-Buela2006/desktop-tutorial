@@ -1,4 +1,5 @@
 /** Notificações, auditoria, lixeira (área recuperável), exportação e acesso de suporte. */
+import { localizeNotification } from "../core/notify.js";
 import type { FastifyInstance } from "fastify";
 import { and, count, desc, eq, gt, ilike, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
@@ -58,7 +59,7 @@ export async function governanceRoutes(app: FastifyInstance) {
   app.get("/api/notifications", async (req) => {
     const ctx = requireCtx(req);
     const rows = await db.select().from(notifications).where(and(eq(notifications.tenantId, ctx.tenant.id), eq(notifications.membershipId, ctx.membership.id))).orderBy(desc(notifications.createdAt)).limit(100);
-    return { items: rows, unread: rows.filter((r) => !r.readAt).length };
+    return { items: rows.map((r) => localizeNotification(r, ctx.user.locale)), unread: rows.filter((r) => !r.readAt).length };
   });
 
   app.post("/api/notifications/read", async (req) => {

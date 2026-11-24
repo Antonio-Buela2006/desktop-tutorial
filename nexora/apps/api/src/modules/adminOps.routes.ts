@@ -9,6 +9,7 @@ import { requireCtx } from "../core/context.js";
 import { AppError, badRequest, notFound } from "../core/errors.js";
 import { parse, uuidParam } from "../core/http.js";
 import { notifyByPermission } from "../core/notify.js";
+import { m, render, asLocale } from "../core/messages.js";
 import { DAY } from "../core/subscription.js";
 import { purgeCanceledTenant } from "../core/retention.js";
 import { adminAudit, requireAdmin } from "./admin.routes.js";
@@ -22,7 +23,7 @@ async function notifyIncident(inc: typeof incidents.$inferSelect, note: string) 
     await notifyByPermission(t, "settings.manage", {
       type: "incident.update",
       severity: inc.severity === "critical" || inc.severity === "high" ? "critical" : "warning",
-      title: `Incidente: ${inc.title} — ${STATUS_PT[inc.status] ?? inc.status}`,
+      title: m("incident.update.title", { title: inc.title, status: STATUS_PT[inc.status] ? m(`incident.status.${inc.status}`) : inc.status }),
       body: note,
       dedupeKey: `incident:${inc.id}:${inc.updates.length}`,
     });

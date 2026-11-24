@@ -21,6 +21,7 @@ import {
 import { audit } from "../core/audit.js";
 import { oldestUnpaidDueAt } from "../core/context.js";
 import { notifyByPermission } from "../core/notify.js";
+import { m, render, asLocale } from "../core/messages.js";
 import { computeAccessState, daysOverdue, DAY } from "../core/subscription.js";
 import { nextInvoiceNumber } from "../core/tenantService.js";
 import { getSetting } from "../modules/billing.routes.js";
@@ -44,7 +45,7 @@ export async function issueRenewals(now = new Date()) {
       lines: [{ description: `Renovação ${p.name}`, quantity: 1, unitPrice: amount, total: amount }], subtotal: amount, total: amount,
       dueAt: s.currentPeriodEnd!, periodStart: s.currentPeriodEnd, meta: { renewalKey: key },
     });
-    await notifyByPermission(s.tenantId, "billing.view", { type: "billing.renewal", title: "Fatura de renovação emitida", body: `Vence em ${s.currentPeriodEnd!.toISOString().slice(0, 10)}.`, link: "/app/billing", dedupeKey: key });
+    await notifyByPermission(s.tenantId, "billing.view", { type: "billing.renewal", title: m("billing.renewal.title"), body: m("billing.renewal.body", { date: s.currentPeriodEnd!.toISOString().slice(0, 10) }), link: "/app/billing", dedupeKey: key });
     n++;
   }
   return n;
@@ -61,14 +62,14 @@ export async function reconcileSubscriptions(now = new Date()) {
       await audit({ tenantId: s.tenantId, actorType: "system", action: "subscription.canceled", entityType: "subscription", entityId: s.id, summary: "Período pago terminou após cancelamento; acesso operacional suspenso, dados preservados." });
     }
     if (state === "trial_expired") {
-      await notifyByPermission(s.tenantId, "billing.view", { type: "trial.expired", severity: "critical", title: "A demonstração terminou", body: "Converta para um plano pago para continuar.", link: "/app/billing", dedupeKey: "trial-expired" });
+      await notifyByPermission(s.tenantId, "billing.view", { type: "trial.expired", severity: "critical", title: m("trial.expired.title"), body: m("trial.expired.body"), link: "/app/billing", dedupeKey: "trial-expired" });
     } else if (s.status === "trial" && s.trialEndsAt && s.trialEndsAt.getTime() - now.getTime() < 3 * DAY) {
-      await notifyByPermission(s.tenantId, "billing.view", { type: "trial.ending", severity: "warning", title: "A demonstração termina em breve", body: `Termina a ${s.trialEndsAt.toISOString().slice(0, 10)}.`, link: "/app/billing", dedupeKey: "trial-ending" });
+      await notifyByPermission(s.tenantId, "billing.view", { type: "trial.ending", severity: "warning", title: m("trial.ending.title"), body: m("trial.ending.body", { date: s.trialEndsAt.toISOString().slice(0, 10) }), link: "/app/billing", dedupeKey: "trial-ending" });
     }
     const d = daysOverdue(due, now);
     if (d > 0) {
       const phase = d <= 3 ? "grace" : d <= 8 ? "read_only" : "suspended";
-      const msg = { grace: "Pagamento em atraso: acesso normal até ao 3.º dia.", read_only: "Pagamento em atraso: modo somente leitura (dias 4–8).", suspended: "Subscrição suspensa por falta de pagamento. Os dados estão preservados." }[phase];
+      const msg = m(`billing.${phase}.title`);
       await notifyByPermission(s.tenantId, "billing.view", { type: `billing.${phase}`, severity: phase === "grace" ? "warning" : "critical", title: msg, link: "/app/billing", dedupeKey: `overdue:${phase}:${due!.toISOString()}` }, { email: true });
     }
   }
@@ -88,7 +89,7 @@ export async function runAlerts(now = new Date()) {
         .where(and(eq(products.tenantId, t.id), isNull(products.deletedAt), lte(products.stockQty, products.reorderLevel)));
       if (low.length) {
         const outOfStock = low.some((l) => l.stockQty <= 0);
-        sent += await notifyByPermission(t.id, "inventory.view", { type: "ai.alert.low_stock", severity: outOfStock ? "critical" : "warning", title: `${low.length} produto(s) com stock baixo${outOfStock ? " (há ruturas)" : ""}`, body: low.slice(0, 5).map((l) => `${l.name} (${l.stockQty})`).join(", "), link: "/app/products?lowStock=1", dedupeKey: `low-stock:${day}` }, outOfStock ? email : {});
+        sent += await notifyByPermission(t.id, "inventory.view", { type: "ai.alert.low_stock", severity: outOfStock ? "critical" : "warning", title: m(outOfStock ? "ai.alert.out_of_stock.title" : "ai.alert.low_stock.title", { count: low.length }), body: low.slice(0, 5).map((l) => `${l.name} (${l.stockQty})`).join(", "), link: "/app/products?lowStock=1", dedupeKey: `low-stock:${day}` }, outOfStock ? email : {});
       }
     }
     if (cfg.abnormalExpense) {
@@ -98,7 +99,7 @@ export async function runAlerts(now = new Date()) {
         const limit = Number(avg.avg) * cfg.abnormalExpenseMultiplier;
         const big = await db.select().from(financeTransactions).where(and(eq(financeTransactions.tenantId, t.id), eq(financeTransactions.kind, "expense"), isNull(financeTransactions.deletedAt), dsql`${financeTransactions.createdAt} > now() - interval '1 day'`, dsql`${financeTransactions.amount} > ${limit}`));
         for (const b of big)
-          sent += await notifyByPermission(t.id, "finance.view", { type: "ai.alert.expense", severity: "critical", title: "Despesa invulgarmente elevada", body: `${b.category}: ${b.amount} (mais de ${cfg.abnormalExpenseMultiplier}× a média recente de ${Math.round(Number(avg.avg))}).`, link: "/app/finance", dedupeKey: `expense:${b.id}` }, email);
+          sent += await notifyByPermission(t.id, "finance.view", { type: "ai.alert.expense", severity: "critical", title: m("ai.alert.expense.title"), body: m("ai.alert.expense.body", { category: b.category, amount: b.amount, multiplier: cfg.abnormalExpenseMultiplier, avg: Math.round(Number(avg.avg)) }), link: "/app/finance", dedupeKey: `expense:${b.id}` }, email);
       }
     }
     if (cfg.salesDrop && now.getUTCDate() >= 10) {
@@ -111,7 +112,7 @@ export async function runAlerts(now = new Date()) {
         const base = prev.reduce((a, b) => a + b, 0) / 3;
         const drop = Math.round(((base - projected) / base) * 100);
         if (drop >= cfg.salesDropPct)
-          sent += await notifyByPermission(t.id, "sales.view", { type: "ai.alert.sales_drop", severity: "warning", title: `Vendas a cair cerca de ${drop}% este mês`, body: `Projeção ${Math.round(projected)} vs média de ${Math.round(base)} nos 3 meses anteriores. Estimativa, não certeza.`, link: "/app/sales", dedupeKey: `sales-drop:${hist[3].month}` });
+          sent += await notifyByPermission(t.id, "sales.view", { type: "ai.alert.sales_drop", severity: "warning", title: m("ai.alert.sales_drop.title", { drop }), body: m("ai.alert.sales_drop.body", { projected: Math.round(projected), base: Math.round(base) }), link: "/app/sales", dedupeKey: `sales-drop:${hist[3].month}` });
       }
     }
   }

@@ -14,6 +14,7 @@ import { SESSION_COOKIE, requireCtx, auditBase } from "../core/context.js";
 import { assertCapacity, createTenant } from "../core/tenantService.js";
 import { seedDemoData } from "../core/demoData.js";
 import { notifyMembership, sendMail } from "../core/notify.js";
+import { m, render, asLocale } from "../core/messages.js";
 import { config } from "../config.js";
 import { assertIpAllowed, recordAuthFailure } from "../core/ipguard.js";
 
@@ -52,8 +53,8 @@ async function startSession(req: FastifyRequest, reply: FastifyReply, user: type
     await notifyMembership(membership.tenantId, membership.id, {
       type: "security.new_device",
       severity: "warning",
-      title: "Novo dispositivo com acesso à sua conta",
-      body: `Início de sessão a partir de ${userAgent || "dispositivo desconhecido"} (IP ${ip}). Se não foi você, termine a sessão e altere a palavra-passe.`,
+      title: m("security.new_device.title"),
+      body: m("security.new_device.body", { agent: userAgent || m("security.unknown_device"), ip }),
       link: "/app/security",
     });
   }
@@ -89,7 +90,7 @@ export async function authRoutes(app: FastifyInstance) {
     const { tenant, user, membership, invoiceId } = await createTenant(body);
     if (body.mode === "trial") await db.transaction((tx) => seedDemoData(tenant.id, tx));
     await startSession(req, reply, user, membership);
-    await sendMail(user.email, "Bem-vindo à Nexora", `A empresa ${tenant.name} foi registada.`);
+    await sendMail(user.email, render(m("mail.welcome.subject"), asLocale(user.locale)), render(m("mail.welcome.body", { company: tenant.name }), asLocale(user.locale)));
     return { tenantId: tenant.id, invoiceId, mode: body.mode };
   });
 
@@ -286,7 +287,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (u) {
       const token = randomToken();
       await db.insert(passwordResets).values({ userId: u.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 30 * 60_000) });
-      await sendMail(u.email, "Recuperação de palavra-passe", `Use este link (válido 30 min): ${config.webOrigin}/reset-password?token=${token}`);
+      await sendMail(u.email, render(m("mail.reset.subject"), asLocale(u.locale)), render(m("mail.reset.body", { link: `${config.webOrigin}/reset-password?token=${token}` }), asLocale(u.locale)));
     }
     // Resposta idêntica exista ou não a conta (evita enumeração).
     return { ok: true };

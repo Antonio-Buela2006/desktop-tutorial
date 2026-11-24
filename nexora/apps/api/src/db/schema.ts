@@ -394,6 +394,8 @@ export const notifications = pgTable(
     severity: text("severity").notNull().default("info"), // info | warning | critical
     title: text("title").notNull(),
     body: text("body").notNull().default(""),
+    /** Chave e parâmetros das mensagens (catálogo `core/messages.ts`) para apresentar no idioma do leitor. */
+    i18n: jsonb("i18n").$type<{ title?: import("../core/messages.js").Msg; body?: import("../core/messages.js").Msg }>(),
     link: text("link"),
     dedupeKey: text("dedupe_key"),
     readAt: ts("read_at"),

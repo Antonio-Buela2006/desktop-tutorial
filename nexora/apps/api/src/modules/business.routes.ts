@@ -16,6 +16,7 @@ import { auditBase, authorize, branchCondition, can, requireCtx, resolveBranchFo
 import { AppError, badRequest, forbidden, notFound } from "../core/errors.js";
 import { pageQuery, parse, uuidParam } from "../core/http.js";
 import { notifyByPermission } from "../core/notify.js";
+import { m, render, asLocale } from "../core/messages.js";
 
 /** Despesas a partir deste valor exigem aprovação por outra pessoa (segregação de funções). */
 export const EXPENSE_APPROVAL_THRESHOLD = 500_000;
@@ -66,7 +67,7 @@ export async function createFinanceTx(ctx: Ctx, input: z.infer<typeof expenseBod
     .returning();
   await audit({ ...auditBase(ctx), actorType: actor, action: "finance.created", entityType: "finance_transaction", entityId: t.id, summary: `${input.kind === "income" ? "Receita" : "Despesa"} ${input.category}: ${input.amount}${needsApproval ? " (aguarda aprovação)" : ""}.` });
   if (needsApproval)
-    await notifyByPermission(ctx.tenant.id, "finance.approve", { type: "finance.approval", severity: "warning", title: "Despesa aguarda aprovação", body: `${input.category}: ${input.amount}`, link: "/app/finance" });
+    await notifyByPermission(ctx.tenant.id, "finance.approve", { type: "finance.approval", severity: "warning", title: m("finance.approval.title"), body: `${input.category}: ${input.amount}`, link: "/app/finance" });
   return t;
 }
 

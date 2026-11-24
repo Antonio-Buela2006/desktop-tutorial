@@ -7,6 +7,7 @@ import { auditBase, authorize, type Ctx } from "../core/context.js";
 import { sha256 } from "../core/crypto.js";
 import { AppError, forbidden } from "../core/errors.js";
 import { notifyByPermission } from "../core/notify.js";
+import { m, render, asLocale } from "../core/messages.js";
 import { getSetting } from "../modules/billing.routes.js";
 import { getProvider, localProvider, type CallTool } from "./providers.js";
 import { toolByName, toolsFor, type AITool } from "./tools.js";
@@ -115,7 +116,7 @@ async function proposeAction(ctx: Ctx, tool: AITool, input: Record<string, unkno
     return { ok: true, data: r };
   }
   calls.push({ tool: tool.name, input, outcome: "pending_approval" });
-  await notifyByPermission(ctx.tenant.id, "ai.approve", { type: "ai.approval", severity: "warning", title: "Ação da IA aguarda aprovação", body: JSON.stringify(preview).slice(0, 300), link: "/app/ai?tab=approvals" });
+  await notifyByPermission(ctx.tenant.id, "ai.approve", { type: "ai.approval", severity: "warning", title: m("ai.approval.title"), body: JSON.stringify(preview).slice(0, 300), link: "/app/ai?tab=approvals" });
   return { ok: true, pendingApproval: { actionId: action.id, preview } };
 }
 

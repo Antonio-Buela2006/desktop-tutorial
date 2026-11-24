@@ -3,6 +3,7 @@ import { db, type DbOrTx } from "../db/client.js";
 import { memberships, notificationPreferences, notifications, users } from "../db/schema.js";
 import nodemailer from "nodemailer";
 import { config } from "../config.js";
+import { asLocale, isMsg, m, render, type Msg } from "./messages.js";
 
 let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 import { effectivePermissions, activeModulesOf } from "./context.js";
@@ -26,7 +27,7 @@ export async function sendMail(to: string, subject: string, body: string) {
   console.warn(`[mail] transporte "${config.mailTransport}" desconhecido; e-mail para ${to} não enviado.`);
 }
 
-type NotifyInput = { type: string; title: string; body?: string; severity?: "info" | "warning" | "critical"; link?: string; dedupeKey?: string };
+type NotifyInput = { type: string; title: string | Msg; body?: string | Msg; severity?: "info" | "warning" | "critical"; link?: string; dedupeKey?: string };
 
 /** Tipos que nunca podem ser silenciados (segurança da conta e estado da subscrição). */
 export const UNMUTABLE_PREFIXES = ["security.", "billing.", "trial.", "ownership.", "incident."];
@@ -54,7 +55,17 @@ export async function notifyMembership(tenantId: string, membershipId: string, n
   }
   const r = await tx
     .insert(notifications)
-    .values({ tenantId, membershipId, type: n.type, title: n.title, body: n.body ?? "", severity: n.severity ?? "info", link: n.link, dedupeKey: n.dedupeKey ?? null })
+    .values({
+      tenantId,
+      membershipId,
+      type: n.type,
+      title: render(n.title, "pt"),
+      body: render(n.body, "pt"),
+      i18n: isMsg(n.title) || isMsg(n.body) ? { title: isMsg(n.title) ? n.title : undefined, body: isMsg(n.body) ? n.body : undefined } : null,
+      severity: n.severity ?? "info",
+      link: n.link,
+      dedupeKey: n.dedupeKey ?? null,
+    })
     .onConflictDoNothing()
     .returning({ id: notifications.id });
   return r.length > 0;
@@ -67,7 +78,7 @@ export async function notifyMembership(tenantId: string, membershipId: string, n
  */
 export async function notifyByPermission(tenantId: string, perm: string, n: NotifyInput, opts: { email?: boolean } = {}) {
   const rows = await db
-    .select({ m: memberships, email: users.email })
+    .select({ m: memberships, email: users.email, locale: users.locale })
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
     .where(and(eq(memberships.tenantId, tenantId), eq(memberships.status, "active")));
@@ -82,8 +93,18 @@ export async function notifyByPermission(tenantId: string, perm: string, n: Noti
     if (opts.email) {
       const p = await prefsOf(r.m.id);
       const emailOn = p?.emailEnabled ?? true;
-      if ((emailOn || unmutable(n.type)) && (n.severity === "critical" || !inQuietHours(p))) await sendMail(r.email, `[Nexora] ${n.title}`, n.body ?? "");
+      if ((emailOn || unmutable(n.type)) && (n.severity === "critical" || !inQuietHours(p))) {
+        const lc = asLocale(r.locale);
+        await sendMail(r.email, render(m("mail.subject_prefix", { title: n.title }), lc), render(n.body, lc));
+      }
     }
   }
   return sent;
+}
+
+/** Apresenta uma notificação guardada no idioma do leitor (usa o texto guardado se não houver chave). */
+export function localizeNotification<T extends { title: string; body: string; i18n?: { title?: Msg; body?: Msg } | null }>(n: T, locale: string) {
+  const lc = asLocale(locale);
+  const { i18n, ...rest } = n;
+  return { ...rest, title: i18n?.title ? render(i18n.title, lc) : n.title, body: i18n?.body ? render(i18n.body, lc) : n.body };
 }
