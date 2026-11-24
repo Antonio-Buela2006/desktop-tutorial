@@ -47,6 +47,7 @@ export const PERMISSIONS: PermissionDef[] = [
   p("inventory.edit", "Editar produtos", true, "inventory"),
   p("inventory.delete", "Eliminar produtos", true, "inventory"),
   p("inventory.adjust", "Ajustar stock", true, "inventory"),
+  p("inventory.approve_transfer", "Aprovar transferências de stock", true, "inventory"),
   p("inventory.export", "Exportar stock", false, "inventory"),
   // Módulo Vendas
   p("sales.view", "Ver vendas", false, "sales"),

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0 — 2026-11-24
+- Guias de transferência de stock entre o armazém central e as unidades:
+  - pedido com várias linhas, motivo e transportador, numerado (GT-00001…);
+  - aprovação por outra pessoa (segregação de funções) com a nova permissão `inventory.approve_transfer`; ao aprovar, o stock sai da origem e fica em trânsito;
+  - receção confirmada no destino; rejeição com motivo; cancelamento por quem pediu;
+  - guia de transporte em PDF; stock em trânsito visível na lista de produtos;
+  - utilizadores restritos a unidades só veem e tratam guias das suas unidades.
+- A transferência imediata passa a exigir a permissão de aprovar transferências.
+- As funções predefinidas das empresas existentes recebem as permissões novas do catálogo sem repor as que a empresa retirou.
+- 82 testes.
+
 ## 0.7.0 — 2026-11-23
 - Importação CSV de clientes e produtos com pré-visualização linha a linha (erros e duplicados no ficheiro e na base) e confirmação; grava só as linhas válidas e regista auditoria.
 - Retenção de dados aplicada:

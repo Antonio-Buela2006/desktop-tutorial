@@ -191,6 +191,7 @@ export function Products() {
   const me = useMeCtx();
   const [params] = useSearchParams();
   const [low, setLow] = useState(params.get("lowStock") === "1");
+  const [tab, setTab] = useState(params.get("tab") === "transfers" ? "transfers" : "products");
   const list = useList("products", "/api/inventory/products", low ? { lowStock: "true" } : {});
   const [edit, setEdit] = useState<any | null>(null);
   const [adjust, setAdjust] = useState<any | null>(null);
@@ -211,7 +212,12 @@ export function Products() {
         {can(me, "inventory.create") && <Button variant="secondary" disabled={!w} onClick={() => setImporting(true)}>Importar CSV</Button>}
         {can(me, "inventory.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> <T>Novo produto</T></Button>}
       </>} />
-      <DataTable
+      <div className="mb-4 flex gap-1 border-b border-slate-200 dark:border-slate-800" role="tablist">
+        {[["products", "Produtos"], ["transfers", "Guias de transferência"]].map(([k, l]) => (
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`border-b-2 px-3 py-2 text-sm ${tab === k ? "border-brand-600 font-medium text-brand-700 dark:text-brand-100" : "border-transparent muted"}`}><T>{l}</T></button>
+        ))}
+      </div>
+      {tab === "transfers" ? <TransferOrders /> : <DataTable
         rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
         toolbar={<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> <T>Só stock baixo</T></label>}
         columns={[
@@ -225,6 +231,7 @@ export function Products() {
                 <p className="mt-1 text-xs muted">
                   {!me.membership.branchScope && <>Central {fmtNum(r.centralQty)}</>}
                   {r.levels.filter((l: any) => l.qty !== 0).map((l: any) => <span key={l.branchId}> · {bName(l.branchId)} {fmtNum(l.qty)}</span>)}
+                  {r.inTransit > 0 && <span className="text-amber-600"> · <T>em trânsito</T> {fmtNum(r.inTransit)}</span>}
                 </p>
               )}
             </div>
@@ -234,14 +241,14 @@ export function Products() {
             key: "a", header: "", className: "text-right", render: (r: any) => (
               <div className="flex justify-end gap-1">
                 {can(me, "inventory.adjust") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setAdjust(r)} aria-label={`Ajustar stock de ${r.name}`}><PackagePlus className="h-4 w-4" /></Button>}
-                {can(me, "inventory.adjust") && branches.length > 0 && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setTransfer(r)} aria-label={`Transferir stock de ${r.name}`}><ArrowLeftRight className="h-4 w-4" /></Button>}
+                {can(me, "inventory.approve_transfer") && branches.length > 0 && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setTransfer(r)} aria-label={`Transferir stock de ${r.name}`}><ArrowLeftRight className="h-4 w-4" /></Button>}
                 {can(me, "inventory.edit") && <Button size="sm" variant="ghost" disabled={!w} onClick={() => setEdit(r)} aria-label={`Editar ${r.name}`}><Pencil className="h-4 w-4" /></Button>}
                 {can(me, "inventory.delete") && <Button size="sm" variant="ghost" disabled={!w} aria-label={`Eliminar ${r.name}`} onClick={async () => { if (await confirm("Eliminar produto", `${r.sku} vai para a lixeira (recuperável durante 30 dias).`)) { await remove.mutateAsync(r.id); toast("Produto movido para a lixeira."); } }}><Trash2 className="h-4 w-4" /></Button>}
               </div>
             ),
           },
         ]}
-      />
+      />}
       <ProductForm value={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); toast("Produto guardado."); }} />
       <AdjustForm value={adjust} onClose={() => setAdjust(null)} onSaved={() => { setAdjust(null); toast("Stock ajustado."); }} />
       {importing && <ImportModal dataset="products" onClose={() => setImporting(false)} onDone={(n) => { setImporting(false); toast(`${n} ✓`); }} />}
@@ -304,7 +311,7 @@ function TransferForm({ product, onClose, onSaved }: { product: any; onClose: ()
   const [reason, setReason] = useState("");
   const save = useAction((v: any) => post("/api/inventory/transfers", v), [["products"], ["movements"]]);
   return (
-    <Modal open onClose={onClose} title={`Transferir stock · ${product.name}`}>
+    <Modal open onClose={onClose} title={`Transferência imediata · ${product.name}`}>
       <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); await save.mutateAsync({ productId: product.id, fromBranchId: from || null, toBranchId: to || null, quantity: qty, reason }); onSaved(); }}>
         {save.error && <ErrorText error={save.error} />}
         <div className="grid gap-3 sm:grid-cols-2">
@@ -479,5 +486,113 @@ function BranchField({ value, onChange }: { value: string; onChange: (v: string)
         {branches.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}
       </Select>
     </Field>
+  );
+}
+
+/* ============================== Guias de transferência ============================== */
+const TR_STATUS: Record<string, [string, "amber" | "blue" | "green" | "red" | "gray"]> = {
+  requested: ["Pedida", "amber"], in_transit: ["Em trânsito", "blue"], received: ["Recebida", "green"], rejected: ["Rejeitada", "red"], canceled: ["Cancelada", "gray"],
+};
+
+function TransferOrders() {
+  const me = useMeCtx();
+  const [status, setStatus] = useState("");
+  const list = useList("transfer-orders", "/api/inventory/transfer-orders", status ? { status } : {});
+  const branches = useBranches();
+  const allBranches = useApi<any[]>(["branches"], "/api/company/branches");
+  const [creating, setCreating] = useState(false);
+  const [reject, setReject] = useState<any | null>(null);
+  const { toast, toastEl } = useToast();
+  const act = useAction(({ id, action, body }: any) => post(`/api/inventory/transfer-orders/${id}/${action}`, body ?? {}), [["transfer-orders"], ["products"], ["movements"]]);
+  const w = me.subscription.caps.write;
+  const loc = (id: string | null) => (id ? allBranches.data?.find((b) => b.id === id)?.name ?? "—" : "Armazém central");
+  const scoped = (id: string | null) => !me.membership.branchScope || (!!id && me.membership.branchScope.includes(id));
+  return (
+    <>
+      {act.error && <div className="mb-3"><ErrorText error={act.error} /></div>}
+      <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error}
+        toolbar={<>
+          <Select aria-label="Estado" value={status} onChange={(e) => setStatus(e.target.value)} className="w-44"><option value="">Todos os estados</option>{Object.entries(TR_STATUS).map(([k, [l]]) => <option key={k} value={k}>{l}</option>)}</Select>
+          {can(me, "inventory.adjust") && branches.length > 0 && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> <T>Nova guia</T></Button>}
+        </>}
+        columns={[
+          { key: "number", header: "N.º", render: (r: any) => <span className="font-mono text-xs">{r.number}</span> },
+          { key: "createdAt", header: "Data", render: (r: any) => fmtDate(r.createdAt) },
+          { key: "route", header: "Percurso", render: (r: any) => <span>{loc(r.fromBranchId)} → {loc(r.toBranchId)}</span> },
+          { key: "lines", header: "Itens", render: (r: any) => r.lines.map((l: any) => `${l.quantity}× ${l.name}`).join(", ") },
+          { key: "status", header: "Estado", render: (r: any) => <Badge tone={TR_STATUS[r.status][1]}>{TR_STATUS[r.status][0]}</Badge> },
+          {
+            key: "a", header: "", className: "text-right", render: (r: any) => (
+              <div className="flex flex-wrap justify-end gap-1">
+                <a className="rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800" href={`/api/inventory/transfer-orders/${r.id}/guide`}>PDF</a>
+                {r.status === "requested" && can(me, "inventory.approve_transfer") && r.requestedBy !== me.membership.id && scoped(r.fromBranchId) && <>
+                  <Button size="sm" disabled={!w} onClick={async () => { await act.mutateAsync({ id: r.id, action: "approve" }); toast("Guia expedida."); }}>Aprovar e expedir</Button>
+                  <Button size="sm" variant="secondary" disabled={!w} onClick={() => setReject(r)}>Rejeitar</Button>
+                </>}
+                {r.status === "requested" && r.requestedBy === me.membership.id && <Button size="sm" variant="ghost" disabled={!w} onClick={() => act.mutate({ id: r.id, action: "cancel" })}>Cancelar</Button>}
+                {r.status === "in_transit" && can(me, "inventory.adjust") && scoped(r.toBranchId) && <Button size="sm" disabled={!w} onClick={async () => { await act.mutateAsync({ id: r.id, action: "receive" }); toast("Guia recebida."); }}>Confirmar receção</Button>}
+              </div>
+            ),
+          },
+        ]} />
+      {creating && <TransferOrderForm onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast("Guia pedida — aguarda aprovação."); }} />}
+      {reject && (
+        <Modal open onClose={() => setReject(null)} title={`Rejeitar ${reject.number}`}>
+          <RejectForm onCancel={() => setReject(null)} onConfirm={async (note) => { await act.mutateAsync({ id: reject.id, action: "reject", body: { note } }); setReject(null); }} />
+        </Modal>
+      )}
+      {toastEl}
+    </>
+  );
+}
+
+function RejectForm({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: (note: string) => void }) {
+  const [note, setNote] = useState("");
+  return (
+    <div className="space-y-3">
+      <Field label="Motivo"><Input value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+      <div className="flex justify-end gap-2"><Button variant="secondary" onClick={onCancel}>Cancelar</Button><Button variant="danger" disabled={note.trim().length < 3} onClick={() => onConfirm(note)}>Rejeitar</Button></div>
+    </div>
+  );
+}
+
+function TransferOrderForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const me = useMeCtx();
+  const branches = useBranches();
+  const all = useApi<any[]>(["branches"], "/api/company/branches");
+  const prods = useApi<any>(["products-all"], "/api/inventory/products?pageSize=100");
+  // Origem/destino possíveis: central (se não restrito) + unidades ativas (qualquer unidade pode ser o "outro lado")
+  const everywhere = [{ id: "", label: "Armazém central" }, ...(all.data ?? []).filter((b) => b.isActive).map((b) => ({ id: b.id, label: `${b.name} (${b.code})` }))];
+  const [from, setFrom] = useState(me.membership.branchScope ? "" : "");
+  const [to, setTo] = useState(me.membership.branchScope?.[0] ?? branches[0]?.id ?? "");
+  const [lines, setLines] = useState([{ productId: "", quantity: 1 }]);
+  const [reason, setReason] = useState("");
+  const [carrier, setCarrier] = useState("");
+  const save = useAction((v: any) => post("/api/inventory/transfer-orders", v), [["transfer-orders"]]);
+  const items = prods.data?.items ?? [];
+  return (
+    <Modal open onClose={onClose} title="Nova guia de transferência" wide>
+      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); await save.mutateAsync({ fromBranchId: from || null, toBranchId: to || null, lines: lines.filter((l) => l.productId), reason, carrier: carrier || undefined }); onSaved(); }}>
+        {save.error && <ErrorText error={save.error} />}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Origem"><Select value={from} onChange={(e) => setFrom(e.target.value)}>{everywhere.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}</Select></Field>
+          <Field label="Destino"><Select value={to} onChange={(e) => setTo(e.target.value)}>{everywhere.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}</Select></Field>
+        </div>
+        {lines.map((l, i) => (
+          <div key={i} className="grid grid-cols-[1fr_90px_auto] items-end gap-2">
+            <Field label={i === 0 ? "Produto" : ""}><Select required value={l.productId} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, productId: e.target.value } : x)))}><option value="">Escolher…</option>{items.map((p: any) => { const q = qtyAt(p, from); return <option key={p.id} value={p.id} disabled={q <= 0}>{p.sku} · {p.name} ({q})</option>; })}</Select></Field>
+            <Field label={i === 0 ? "Qtd" : ""}><Input type="number" min={1} value={l.quantity} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, quantity: Math.max(1, +e.target.value) } : x)))} /></Field>
+            <Button type="button" variant="ghost" aria-label="Remover linha" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}><X className="h-4 w-4" /></Button>
+          </div>
+        ))}
+        <Button type="button" variant="secondary" size="sm" onClick={() => setLines([...lines, { productId: "", quantity: 1 }])}><Plus className="h-4 w-4" /> <T>Linha</T></Button>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Motivo"><Input required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Abastecimento, reposição…" /></Field>
+          <Field label="Transportador (opcional)"><Input value={carrier} onChange={(e) => setCarrier(e.target.value)} /></Field>
+        </div>
+        <p className="text-xs muted"><T>A guia segue para aprovação por outra pessoa. Ao ser aprovada, o stock sai da origem e fica em trânsito até ser confirmada a receção no destino.</T></p>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button disabled={from === to} loading={save.isPending}>Pedir transferência</Button></div>
+      </form>
+    </Modal>
   );
 }

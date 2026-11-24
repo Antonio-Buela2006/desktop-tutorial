@@ -10,6 +10,7 @@ import { db, type DbOrTx } from "../db/client.js";
 import { customers, employees, financeTransactions, products, salesOrders, stockLevels, stockMovements, type SaleLine } from "../db/schema.js";
 import { applyMove, centralQty, lockProduct, transfer } from "../core/inventory.js";
 import { randomUUID } from "node:crypto";
+import { inTransitByProduct } from "./transfers.routes.js";
 import { audit } from "../core/audit.js";
 import { auditBase, authorize, branchCondition, can, requireCtx, resolveBranchForWrite, type Ctx } from "../core/context.js";
 import { AppError, badRequest, forbidden, notFound } from "../core/errors.js";
@@ -199,13 +200,14 @@ export async function businessRoutes(app: FastifyInstance) {
     );
     const items = await db.select().from(products).where(where).orderBy(asc(products.name)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
     const [{ n }] = await db.select({ n: count() }).from(products).where(where);
+    const transit = await inTransitByProduct(ctx.tenant.id);
     const levels = items.length ? await db.select().from(stockLevels).where(and(eq(stockLevels.tenantId, ctx.tenant.id), inArray(stockLevels.productId, items.map((i) => i.id)))) : [];
     return {
       items: items.map((p) => {
         const mine = levels.filter((l) => l.productId === p.id);
         // Utilizadores restritos veem o stock das suas unidades (o total da empresa continua visível).
         const visible = ctx.branchScope ? mine.filter((l) => ctx.branchScope!.includes(l.branchId)) : mine;
-        return { ...p, centralQty: centralQty(p, mine), levels: visible.map((l) => ({ branchId: l.branchId, qty: l.qty })) };
+        return { ...p, centralQty: centralQty(p, mine), inTransit: transit.get(p.id) ?? 0, levels: visible.map((l) => ({ branchId: l.branchId, qty: l.qty })) };
       }),
       total: n,
     };
@@ -261,7 +263,8 @@ export async function businessRoutes(app: FastifyInstance) {
   /** Transferência de stock entre o armazém central e as unidades (o total da empresa mantém-se). */
   app.post("/api/inventory/transfers", async (req) => {
     const ctx = requireCtx(req);
-    authorize(ctx, "inventory.adjust");
+    // Transferência imediata (sem guia): reservada a quem pode aprovar transferências.
+    authorize(ctx, "inventory.approve_transfer");
     const body = parse(
       z.object({ productId: z.string().uuid(), fromBranchId: z.string().uuid().nullable(), toBranchId: z.string().uuid().nullable(), quantity: z.number().int().min(1).max(1e6), reason: z.string().trim().min(3).max(200) }),
       req.body,

@@ -115,3 +115,35 @@ export function buildInvoicePdf(inv: {
       .text("Documento informativo. Não constitui fatura fiscal certificada — formato fiscal e impostos pendentes de validação com consultoria local (Angola).", 40, doc.y, { width: 515 });
   });
 }
+
+const STATUS_PT: Record<string, string> = { requested: "PEDIDA", in_transit: "EM TRÂNSITO", received: "RECEBIDA", rejected: "REJEITADA", canceled: "CANCELADA" };
+
+/** Guia de transporte de mercadorias entre localizações da empresa. */
+export function buildTransferGuidePdf(
+  t: { number: string; status: string; lines: { sku: string; name: string; quantity: number }[]; reason: string; carrier: string | null; createdAt: Date; shippedAt: Date | null; receivedAt: Date | null },
+  info: { company: string; taxId: string | null; from: string; to: string },
+): Promise<Buffer> {
+  const d = (x: Date | null) => (x ? x.toISOString().slice(0, 16).replace("T", " ") : "—");
+  return pdfToBuffer((doc) => {
+    doc.fontSize(22).fillColor("#4338ca").text("Nexora").fillColor("#000");
+    doc.fontSize(9).fillColor("#555").text(`${info.company}${info.taxId ? ` · NIF ${info.taxId}` : ""}`).fillColor("#000").moveDown();
+    doc.fontSize(16).text(`Guia de transporte ${t.number}`);
+    doc.fontSize(10).text(`Estado: ${STATUS_PT[t.status] ?? t.status}`).moveDown(0.5);
+    doc.text(`Origem: ${info.from}`).text(`Destino: ${info.to}`).text(`Motivo: ${t.reason}`).text(`Transportador: ${t.carrier ?? "—"}`);
+    doc.text(`Pedida: ${d(t.createdAt)}    Expedida: ${d(t.shippedAt)}    Recebida: ${d(t.receivedAt)}`).moveDown();
+    const y0 = doc.y;
+    doc.font("Helvetica-Bold").fontSize(9).text("SKU", 40, y0).text("Produto", 140, y0).text("Quantidade", 460, y0);
+    doc.font("Helvetica").moveDown(0.5);
+    let total = 0;
+    for (const l of t.lines) {
+      const y = doc.y;
+      doc.text(l.sku, 40, y, { width: 95 }).text(l.name, 140, y, { width: 310 }).text(String(l.quantity), 460, y);
+      doc.y = Math.max(doc.y, y + 12) + 3;
+      total += l.quantity;
+    }
+    doc.moveDown().font("Helvetica-Bold").text(`Total de unidades: ${total}`, 40).font("Helvetica").moveDown(3);
+    const ys = doc.y;
+    doc.text("Expedido por: ____________________", 40, ys).text("Recebido por: ____________________", 310, ys);
+    doc.moveDown(3).fontSize(8).fillColor("#777").text("Documento interno de movimentação de mercadorias. O modelo fiscal de guia de transporte (Angola) está pendente de validação com consultoria local.", 40, doc.y, { width: 515 });
+  });
+}

@@ -43,6 +43,13 @@
       "when": 1795463728755,
       "tag": "0005_incidents",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795524171956,
+      "tag": "0006_stock_transfers",
+      "breakpoints": true
     }
   ]
 }

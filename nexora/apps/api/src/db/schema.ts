@@ -631,6 +631,36 @@ export const stockLevels = pgTable(
   (t) => [primaryKey({ columns: [t.productId, t.branchId] }), index("stock_levels_tenant").on(t.tenantId)],
 );
 
+export type TransferLine = { productId: string; sku: string; name: string; quantity: number };
+
+/**
+ * Guia de transferência entre localizações: pedida → expedida (aprovada; sai da origem e fica em trânsito)
+ * → recebida (entra no destino). Pode ser rejeitada ou cancelada antes da expedição.
+ */
+export const stockTransfers = pgTable(
+  "stock_transfers",
+  {
+    id: id(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    number: text("number").notNull(),
+    fromBranchId: uuid("from_branch_id"), // null = armazém central
+    toBranchId: uuid("to_branch_id"),
+    lines: jsonb("lines").$type<TransferLine[]>().notNull(),
+    reason: text("reason").notNull(),
+    // requested | in_transit | received | rejected | canceled
+    status: text("status").notNull().default("requested"),
+    requestedBy: uuid("requested_by").notNull(),
+    approvedBy: uuid("approved_by"),
+    receivedBy: uuid("received_by"),
+    carrier: text("carrier"),
+    createdAt: createdAt(),
+    shippedAt: ts("shipped_at"),
+    receivedAt: ts("received_at"),
+    decisionNote: text("decision_note"),
+  },
+  (t) => [uniqueIndex("stock_transfers_tenant_number").on(t.tenantId, t.number), index("stock_transfers_status").on(t.tenantId, t.status)],
+);
+
 export const stockMovements = pgTable("stock_movements", {
   id: id(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),

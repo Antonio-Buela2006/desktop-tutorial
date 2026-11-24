@@ -9,6 +9,8 @@ import path from "node:path";
 import { db, sql } from "./client.js";
 import { moduleCatalog, plans, platformAdmins, platformSettings } from "./schema.js";
 import { hashPassword } from "../core/crypto.js";
+import { PERMISSIONS, SYSTEM_ROLES } from "../core/permissions.js";
+import { sql as dsql } from "drizzle-orm";
 
 export const TEST_PLANS = [
   { code: "starter", name: "Starter", description: "Para pequenas equipas que começam a organizar a gestão.", sortOrder: 1,
@@ -43,6 +45,27 @@ export const DEFAULT_PLATFORM_SETTINGS: Record<string, unknown> = {
   payment_providers: { sandbox: true, bank_transfer: true, multicaixa_express: false },
 };
 
+/**
+ * Migração do catálogo de permissões: quando surgem permissões novas no código, são acrescentadas às
+ * funções predefinidas (de sistema) de todas as empresas que as devam ter. Só permissões NOVAS —
+ * nunca se repõe uma permissão que uma empresa tenha retirado de uma função.
+ */
+export async function syncSystemRolePermissions() {
+  const [row] = await db.select().from(platformSettings).where(eq(platformSettings.key, "permission_catalog_seen"));
+  // Base para instalações anteriores a esta sincronização (permissões que já existiam nessa altura).
+  const seen = new Set<string>((row?.value as string[]) ?? PERMISSIONS.map((p) => p.key).filter((k) => !INTRODUCED_LATER.includes(k)));
+  const fresh = PERMISSIONS.map((p) => p.key).filter((k) => !seen.has(k));
+  for (const key of fresh) {
+    for (const def of SYSTEM_ROLES.filter((r) => r.permissions.includes(key))) {
+      await db.execute(dsql`update roles set permissions = array_append(permissions, ${key}) where is_system = true and code = ${def.code} and not (${key} = any(permissions))`);
+    }
+  }
+  const all = PERMISSIONS.map((p) => p.key);
+  await db.insert(platformSettings).values({ key: "permission_catalog_seen", value: all }).onConflictDoUpdate({ target: platformSettings.key, set: { value: all, updatedAt: new Date() } });
+  return fresh;
+}
+const INTRODUCED_LATER = ["inventory.approve_transfer"];
+
 export async function seedPlatform() {
   for (const p of TEST_PLANS) {
     const [exists] = await db.select({ id: plans.id }).from(plans).where(eq(plans.code, p.code));
@@ -54,6 +77,7 @@ export async function seedPlatform() {
   for (const [key, value] of Object.entries(DEFAULT_PLATFORM_SETTINGS)) {
     await db.insert(platformSettings).values({ key, value }).onConflictDoNothing();
   }
+  await syncSystemRolePermissions();
   const email = (process.env.SEED_PLATFORM_ADMIN_EMAIL ?? "admin@nexora.local").toLowerCase();
   const [admin] = await db.select({ id: platformAdmins.id }).from(platformAdmins).where(eq(platformAdmins.email, email));
   if (!admin) {
