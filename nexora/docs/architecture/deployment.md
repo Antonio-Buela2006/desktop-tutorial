@@ -24,7 +24,7 @@ Em produção o fornecedor `sandbox` é recusado e os links de convite não são
 - [ ] Observabilidade: recolher `/api/metrics` (Bearer `METRICS_TOKEN`) em Prometheus/Grafana; alertas para
       `nexora_http_errors_total`, `nexora_auth_failures_total`, `nexora_ip_blocks_total` e latência p95; logs JSON centralizados.
 - [ ] Ficheiros: `STORAGE_DRIVER=s3` com bucket privado, encriptação e versionamento; antivírus nos uploads.
-- [ ] Ativar RLS (ADR-0003) e rever o threat model.
+- [ ] Definir `DB_RLS=required` (o arranque falha se o RLS não puder ser ativado) e confirmar `"rls": true` em `/api/health`. O papel de ligação precisa de poder criar o papel `nexora_tenant` (ou um DBA cria-o antes) — ADR-0003.
 - [ ] Fornecedor de pagamentos real validado (sandbox, contrato, webhooks) e dados bancários configurados.
 - [ ] Textos legais, fiscalidade e retenção aprovados profissionalmente.
 - [ ] Pentest / revisão de segurança e plano de resposta a incidentes.

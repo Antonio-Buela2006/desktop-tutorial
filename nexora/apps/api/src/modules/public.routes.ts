@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
-import { db } from "../db/client.js";
+import { db, rlsEnabled } from "../db/client.js";
 import { moduleCatalog, plans } from "../db/schema.js";
 
 /** Conteúdo comercial público — administrável pelo portal Nexora. Valores não confirmados não são publicados. */
@@ -32,6 +32,6 @@ export async function publicRoutes(app: FastifyInstance) {
 
   app.get("/api/health", async () => {
     await db.execute("select 1" as any);
-    return { ok: true, time: new Date().toISOString() };
+    return { ok: true, rls: rlsEnabled(), time: new Date().toISOString() };
   });
 }

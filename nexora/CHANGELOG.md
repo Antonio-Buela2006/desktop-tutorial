@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 — 2026-11-24
+- Row-Level Security no PostgreSQL como segunda barreira de isolamento entre empresas (ADR-0003):
+  - papel `nexora_tenant` sem `BYPASSRLS` e política em todas as tabelas com `tenant_id` (e em `tenants`), aplicada a leitura e escrita;
+  - cada pedido de empresa corre numa ligação reservada com `app.tenant_id` fixado; sem empresa definida não se vê nada (falha fechada);
+  - aplicado automaticamente a tabelas novas em cada arranque; transações e savepoints suportados;
+  - `DB_RLS=auto|required|off`, `DB_POOL_MAX`; estado visível em `/api/health`.
+- 89 testes (7 novos de RLS, incluindo tentativas de leitura, escrita, alteração e eliminação noutra empresa sem filtro na aplicação).
+
 ## 0.8.0 — 2026-11-24
 - Guias de transferência de stock entre o armazém central e as unidades:
   - pedido com várias linhas, motivo e transportador, numerado (GT-00001…);

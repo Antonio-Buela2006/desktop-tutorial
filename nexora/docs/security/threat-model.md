@@ -21,7 +21,7 @@ faturação, configuração comercial, registos de auditoria, capacidade de aç�
 | Exposição de segredos | repositório | `.env` ignorado, `.env.example` sem segredos, TOTP encriptado AES-256-GCM em repouso | — |
 
 ## Riscos residuais / a tratar antes de produção
-- RLS no PostgreSQL como defesa em profundidade (ADR-0003).
+- RLS no PostgreSQL ativo (ADR-0003, `rls.test.ts`). Risco residual: rotas de identidade (`/api/auth/*`), portal Nexora, webhooks e jobs correm sem RLS e dependem só dos filtros da aplicação; tabelas globais (utilizadores, planos) não têm RLS.
 - WAF, deteção de anomalias e alertas de segurança centralizados (hoje: rate limit + bloqueio + alertas de dispositivo).
 - Rotação de `ENCRYPTION_KEY` (re-encriptação de segredos TOTP) e gestão via secret manager.
 - Pentest externo e revisão de dependências (SCA) no CI.

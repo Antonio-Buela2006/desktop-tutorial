@@ -14,7 +14,7 @@ Plataforma web **multiempresa**, **modular** e **assistida por IA** para PME, im
 | --- | --- |
 | Site público | Início, funcionalidades, módulos, planos (preços "a definir" até confirmação), segurança, sobre, contacto, FAQ, termos/privacidade/cookies, registo em passos, login |
 | Identidade | E-mail + palavra-passe, bloqueio após 5 falhas, **2FA TOTP** (Google/Microsoft Authenticator) com códigos de recuperação, política de 2FA por empresa, sessões/dispositivos com término remoto, expiração por inatividade, limite de dispositivos, alerta de novo dispositivo, recuperação de conta, convites |
-| Multi-tenancy | Tenant obtido **sempre da sessão**; todas as consultas filtradas por `tenant_id`; testes negativos de isolamento horizontal e vertical |
+| Multi-tenancy | Tenant obtido **sempre da sessão**; todas as consultas filtradas por `tenant_id` **e RLS no PostgreSQL** (cada pedido de empresa corre num papel restrito à sua empresa); testes negativos de isolamento horizontal e vertical |
 | RBAC | 46 permissões granulares, 9 funções predefinidas + personalizadas, ajustes por utilizador (conceder/negar), acessos temporários com validade, segregação de funções, administradores principal/secundários com âmbito delegado, transferência segura de titularidade |
 | Subscrição | Planos Starter/Professional/Enterprise configuráveis, limites **independentes** de funcionários e utilizadores, trial 14 dias com dados fictícios, módulos com dependências, troca gratuita nos 7 primeiros dias e proporcional depois, upgrade/downgrade com pré-visualização, capacidade adicional, cancelamento no fim do período, regras de atraso **1–3 / 4–8 / 9+** aplicadas no servidor |
 | Pagamentos | Camada desacoplada de fornecedores (sandbox, transferência bancária com reconciliação manual, Multicaixa Express preparado), **webhooks HMAC**, idempotência, faturas com estados, ativação automática após pagamento |
@@ -66,7 +66,7 @@ Repor a base local: `pnpm db:reset` (proibido em produção).
 
 ```bash
 pnpm typecheck   # TypeScript strict (api + web)
-pnpm test        # 78 testes: unitários + integração em PostgreSQL real (base nexora_test)
+pnpm test        # 89 testes: unitários + integração em PostgreSQL real (base nexora_test)
 pnpm build       # build da API e da web
 node tests/e2e/smoke.cjs   # E2E no navegador (com `pnpm dev` + seed; requer `npm i -g playwright && npx playwright install chromium`)
 ```

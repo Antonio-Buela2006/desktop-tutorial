@@ -9,7 +9,8 @@ import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 import { config } from "./config.js";
 import { AppError } from "./core/errors.js";
-import { contextHook } from "./core/context.js";
+import { contextHook, releaseTenantScope, tenantScopeHook } from "./core/context.js";
+import { detectRls } from "./db/rls.js";
 import { authRoutes } from "./modules/auth.routes.js";
 import { companyRoutes } from "./modules/company.routes.js";
 import { governanceRoutes } from "./modules/governance.routes.js";
@@ -27,6 +28,7 @@ import { transferRoutes } from "./modules/transfers.routes.js";
 import { registerObservability } from "./core/observability.js";
 
 export async function buildApp() {
+  await detectRls();
   const app = Fastify({
     logger: config.isTest ? false : { level: "info", redact: ["req.headers.cookie", "req.headers.authorization"] },
     trustProxy: true,
@@ -58,6 +60,8 @@ export async function buildApp() {
     reply.header("x-request-id", req.id);
   });
   app.addHook("preHandler", contextHook);
+  app.addHook("preHandler", tenantScopeHook);
+  app.addHook("onResponse", async (req) => releaseTenantScope(req));
 
   app.setErrorHandler((err: any, req, reply) => {
     if (err instanceof AppError) return reply.code(err.status).send({ error: { code: err.code, message: err.message, details: err.details } });

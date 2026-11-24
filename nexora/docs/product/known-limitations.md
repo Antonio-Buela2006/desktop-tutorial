@@ -8,7 +8,7 @@ Transparência exigida pela especificação (§17, §20). Lista honesta do estad
 3. **Faturação fiscal**: as faturas têm PDF informativo, mas não são certificadas fiscalmente (AGT) — pendente de validação local.
 4. **Exportação**: CSV, JSON, XLSX e PDF disponíveis. O relatório PDF mostra até 7 colunas e 500 linhas por conjunto (dados completos em XLSX/CSV).
 5. **E-mail**: SMTP suportado (`MAIL_TRANSPORT=smtp`); falta escolher o fornecedor e configurar o domínio (SPF/DKIM).
-6. **RLS no PostgreSQL**: não ativado (isolamento aplicado e testado na aplicação) — ver ADR-0003.
+6. **RLS no PostgreSQL**: ativo como segunda barreira (ADR-0003) em todas as tabelas com `tenant_id`. Ficam fora, por atravessarem empresas por natureza: rotas de identidade (`/api/auth/*`), portal Nexora, webhooks e jobs, que continuam protegidos pela aplicação. Tabelas globais (utilizadores, planos) não têm RLS. Cada pedido de empresa ocupa uma ligação do pool enquanto dura (`DB_POOL_MAX`).
 7. **Filas**: jobs em processo/worker sem Redis/BullMQ (ADR-0004).
 8. **Ficheiros/documentos**: documentos de funcionários e clientes com armazenamento local ou S3. Antivírus ClamAV suportado (`CLAMAV_HOST`), com falha fechada; é preciso disponibilizar o serviço clamd na infraestrutura.
 9. **IA**: previsões por regressão linear simples (com intervalos e limitações explícitas); aprendizagem

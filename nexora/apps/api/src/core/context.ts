@@ -5,7 +5,7 @@
  */
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { and, eq, gt, inArray, isNull, lte, min, type AnyColumn } from "drizzle-orm";
-import { db } from "../db/client.js";
+import { db, dbScope, openTenantScope, rlsEnabled } from "../db/client.js";
 import {
   branches,
   invoices,
@@ -49,6 +49,7 @@ export type Ctx = {
 declare module "fastify" {
   interface FastifyRequest {
     nx?: Ctx | null;
+    nxScope?: { release?: () => Promise<void> };
   }
 }
 
@@ -205,6 +206,31 @@ export async function contextHook(req: FastifyRequest, reply: FastifyReply) {
     }
   }
   req.nx = await resolveSession(req);
+}
+
+/**
+ * Hook (callback) que corre o resto do pedido dentro do âmbito de base de dados da empresa (RLS).
+ * Tem de ser de callback para que `done` corra dentro de `AsyncLocalStorage.run`.
+ * As rotas que atravessam empresas por natureza (portal Nexora, webhooks, troca de empresa) ficam de fora.
+ */
+// Identidade (sessões, palavra-passe, lista de empresas do utilizador), portal Nexora e webhooks.
+const CROSS_TENANT = [/^\/api\/auth\//, /^\/api\/admin\//, /^\/api\/webhooks\//];
+export function tenantScopeHook(req: FastifyRequest, reply: FastifyReply, done: (err?: Error) => void) {
+  const tenantId = req.nx?.tenant.id;
+  const cfg = (req.routeOptions?.config ?? {}) as { crossTenant?: boolean };
+  if (!tenantId || !rlsEnabled() || cfg.crossTenant || CROSS_TENANT.some((r) => r.test(req.url))) return done();
+  openTenantScope(tenantId).then(
+    (scope) => {
+      req.nxScope = scope;
+      reply.raw.once("close", () => void scope.release?.());
+      dbScope.run(scope, () => done());
+    },
+    (e) => done(e),
+  );
+}
+
+export async function releaseTenantScope(req: FastifyRequest) {
+  await req.nxScope?.release?.();
 }
 
 export function auditBase(ctx: Ctx) {

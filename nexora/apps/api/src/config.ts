@@ -30,4 +30,7 @@ export const config = {
   anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5",
   mailTransport: process.env.MAIL_TRANSPORT ?? "console",
   sessionTtlHours: 24 * 7,
+  /** RLS do PostgreSQL: "auto" (ativa se for possível criar o papel), "required" (falha se não for) ou "off". */
+  dbRls: (process.env.DB_RLS ?? "auto") as "auto" | "required" | "off",
+  dbPoolMax: Number(process.env.DB_POOL_MAX ?? 20),
 };
