@@ -20,6 +20,7 @@
     "backup:verify": "pnpm --filter @nexora/api backup:verify"
   },
   "devDependencies": {
+    "axe-core": "^4.14.1",
     "prettier": "^3.6.2",
     "typescript": "5.9.3"
   },

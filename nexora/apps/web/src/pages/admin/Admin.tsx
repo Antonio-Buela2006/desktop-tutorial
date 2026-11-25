@@ -240,7 +240,7 @@ function JobRuns() {
               <td className="font-mono text-xs">{r.trigger}{r.host ? ` · ${r.host}` : ""}</td>
               <td><Badge tone={tone[r.status] ?? "gray"}>{r.status}</Badge></td>
               <td>{r.durationMs != null ? `${r.durationMs} ms` : "—"}</td>
-              <td className="max-w-xs truncate text-xs text-rose-600" title={r.error ?? ""}>{r.error ?? ""}</td>
+              <td className="max-w-xs truncate text-xs text-rose-600 dark:text-rose-400" title={r.error ?? ""}>{r.error ?? ""}</td>
             </tr>
           ))}
           {!data.runs.length && <tr><td colSpan={5} className="py-2 muted"><T>Ainda sem execuções registadas.</T></td></tr>}

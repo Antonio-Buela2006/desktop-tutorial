@@ -62,7 +62,7 @@ export function ImportModal({ dataset, onClose, onDone }: { dataset: "customers"
                       <td className="td">{r.line}</td>
                       <td className="td"><Badge tone={tone[r.status as keyof typeof tone]}>{label[r.status as keyof typeof label]}</Badge></td>
                       {p.columns.map((c: string) => <td key={c} className="td">{r.data[c] === undefined ? "" : String(r.data[c])}</td>)}
-                      <td className="td text-rose-600">{r.errors.map(errText).join("; ")}</td>
+                      <td className="td text-rose-600 dark:text-rose-400">{r.errors.map(errText).join("; ")}</td>
                     </tr>
                   ))}
                 </tbody>

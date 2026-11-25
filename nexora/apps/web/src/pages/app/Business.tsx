@@ -235,11 +235,11 @@ export function Products() {
                 <p className="mt-1 text-xs muted">
                   {!me.membership.branchScope && <>Central {fmtNum(r.centralQty)}</>}
                   {r.levels.filter((l: any) => l.qty !== 0).map((l: any) => <span key={l.branchId}> · {bName(l.branchId)} {fmtNum(l.qty)}</span>)}
-                  {r.inTransit > 0 && <span className="text-amber-600"> · <T>em trânsito</T> {fmtNum(r.inTransit)}</span>}
+                  {r.inTransit > 0 && <span className="text-amber-700 dark:text-amber-400"> · <T>em trânsito</T> {fmtNum(r.inTransit)}</span>}
                 </p>
               )}
               {cover.get(r.sku)?.daysOfCover != null && cover.get(r.sku).daysOfCover <= 60 && (
-                <p className={`mt-1 text-xs ${cover.get(r.sku).daysOfCover <= 14 ? "text-rose-600" : "text-amber-600"}`} title={tr("Estimativa a partir das vendas dos últimos 90 dias; não é uma certeza.")}>
+                <p className={`mt-1 text-xs ${cover.get(r.sku).daysOfCover <= 14 ? "text-rose-600 dark:text-rose-400" : "text-amber-700 dark:text-amber-400"}`} title={tr("Estimativa a partir das vendas dos últimos 90 dias; não é uma certeza.")}>
                   {tr("esgota em")} ~{cover.get(r.sku).daysOfCover} {tr("dias")}
                 </p>
               )}
@@ -275,7 +275,7 @@ function Movements() {
       columns={[
         { key: "createdAt", header: "Data", render: (r: any) => fmtDateTime(r.createdAt) },
         { key: "product", header: "Produto" },
-        { key: "delta", header: "Qtd", render: (r: any) => <span className={r.delta < 0 ? "text-rose-600" : "text-emerald-600"}>{r.delta > 0 ? "+" : ""}{r.delta}</span> },
+        { key: "delta", header: "Qtd", render: (r: any) => <span className={r.delta < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400"}>{r.delta > 0 ? "+" : ""}{r.delta}</span> },
         { key: "reason", header: "Motivo" },
       ]} />
   );
@@ -443,7 +443,7 @@ function CashflowForecast({ currency }: { currency: string }) {
                     <td className="py-1.5 pr-4 font-mono text-xs">{n.period}</td>
                     <td className="pr-4">~{fmtMoney(data.income[i].value, currency)}</td>
                     <td className="pr-4">~{fmtMoney(data.expense[i].value, currency)}</td>
-                    <td><strong className={n.value < 0 ? "text-rose-600" : ""}>~{fmtMoney(n.value, currency)}</strong> <span className="text-xs muted">({fmtMoney(n.low, currency)} – {fmtMoney(n.high, currency)})</span></td>
+                    <td><strong className={n.value < 0 ? "text-rose-600 dark:text-rose-400" : ""}>~{fmtMoney(n.value, currency)}</strong> <span className="text-xs muted">({fmtMoney(n.low, currency)} – {fmtMoney(n.high, currency)})</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -483,8 +483,8 @@ export function Finance() {
           {
             key: "a", header: "", className: "text-right", render: (r: any) => r.status === "pending_approval" && can(me, "finance.approve") && (
               <div className="flex justify-end gap-1">
-                <Button size="sm" variant="ghost" disabled={!w || r.createdBy === me.membership.id} title={r.createdBy === me.membership.id ? "Segregação de funções: não pode aprovar o que registou" : "Aprovar"} onClick={async () => { await decide.mutateAsync({ id: r.id, decision: "approve" }); toast("Despesa aprovada."); }} aria-label="Aprovar"><Check className="h-4 w-4 text-emerald-600" /></Button>
-                <Button size="sm" variant="ghost" disabled={!w || r.createdBy === me.membership.id} onClick={async () => { await decide.mutateAsync({ id: r.id, decision: "reject" }); toast("Despesa rejeitada."); }} aria-label="Rejeitar"><X className="h-4 w-4 text-rose-600" /></Button>
+                <Button size="sm" variant="ghost" disabled={!w || r.createdBy === me.membership.id} title={r.createdBy === me.membership.id ? "Segregação de funções: não pode aprovar o que registou" : "Aprovar"} onClick={async () => { await decide.mutateAsync({ id: r.id, decision: "approve" }); toast("Despesa aprovada."); }} aria-label="Aprovar"><Check className="h-4 w-4 text-emerald-700 dark:text-emerald-400" /></Button>
+                <Button size="sm" variant="ghost" disabled={!w || r.createdBy === me.membership.id} onClick={async () => { await decide.mutateAsync({ id: r.id, decision: "reject" }); toast("Despesa rejeitada."); }} aria-label="Rejeitar"><X className="h-4 w-4 text-rose-600 dark:text-rose-400" /></Button>
               </div>
             ),
           },

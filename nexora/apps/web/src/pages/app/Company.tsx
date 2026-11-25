@@ -390,8 +390,8 @@ export function Settings() {
               {doTransfer.error && <ErrorText error={doTransfer.error} />}
               {doTransfer.isSuccess && <Alert tone="success"><T>Pedido enviado. Aguarda confirmação do destinatário (72h).</T></Alert>}
               <div className="space-y-2">
-                <Select value={transfer.to} onChange={(e) => setTransfer({ ...transfer, to: e.target.value })}><option value="">Escolher utilizador…</option>{users.data?.users.filter((u: any) => u.status === "active" && u.level !== "primary_admin").map((u: any) => <option key={u.id} value={u.id}>{u.user.name}</option>)}</Select>
-                <Input type="password" placeholder="A sua palavra-passe" value={transfer.password} onChange={(e) => setTransfer({ ...transfer, password: e.target.value })} />
+                <Select aria-label="Utilizador de destino" value={transfer.to} onChange={(e) => setTransfer({ ...transfer, to: e.target.value })}><option value="">Escolher utilizador…</option>{users.data?.users.filter((u: any) => u.status === "active" && u.level !== "primary_admin").map((u: any) => <option key={u.id} value={u.id}>{u.user.name}</option>)}</Select>
+                <Input type="password" aria-label="A sua palavra-passe" placeholder="A sua palavra-passe" value={transfer.password} onChange={(e) => setTransfer({ ...transfer, password: e.target.value })} />
                 <Button variant="danger" disabled={!transfer.to || !transfer.password} onClick={() => doTransfer.mutate({ toMembershipId: transfer.to, password: transfer.password })}><T>Pedir transferência</T></Button>
               </div>
             </Card>
@@ -404,7 +404,7 @@ export function Settings() {
                 <Input type="email" placeholder="E-mail do técnico Nexora" value={grant.platformAdminEmail} onChange={(e) => setGrant({ ...grant, platformAdminEmail: e.target.value })} />
                 <Input placeholder="Motivo (mín. 10 caracteres)" value={grant.reason} onChange={(e) => setGrant({ ...grant, reason: e.target.value })} />
                 <div className="flex flex-wrap gap-3 text-sm">{([["customers", "Clientes"], ["products", "Produtos"], ["sales_orders", "Vendas"], ["finance_transactions", "Finanças"], ["employees", "Funcionários (sem salários)"]] as const).map(([s, l]) => <label key={s} className="flex items-center gap-1"><input type="checkbox" checked={grant.scope.includes(s)} onChange={(e) => setGrant({ ...grant, scope: e.target.checked ? [...grant.scope, s] : grant.scope.filter((x) => x !== s) })} />{l}</label>)}</div>
-                <div className="flex items-center gap-2 text-sm"><T>Duração</T> <Input type="number" min={1} max={72} className="w-20" value={grant.hours} onChange={(e) => setGrant({ ...grant, hours: +e.target.value })} /> <T>horas</T></div>
+                <div className="flex items-center gap-2 text-sm"><T>Duração</T> <Input type="number" min={1} max={72} className="w-20" aria-label="Duração em horas" value={grant.hours} onChange={(e) => setGrant({ ...grant, hours: +e.target.value })} /> <T>horas</T></div>
                 <Button onClick={async () => { await createGrant.mutateAsync(grant); toast("Acesso temporário autorizado."); }}><T>Autorizar</T></Button>
               </div>
               <ul className="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">{grants.data?.map((g) => {

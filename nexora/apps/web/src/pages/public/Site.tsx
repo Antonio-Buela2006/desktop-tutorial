@@ -121,9 +121,9 @@ export function Pricing() {
                   ["Módulos incluídos", p.includedModules],
                   ["Créditos de IA / mês", p.aiCreditsMonthly],
                 ].map(([l, v]) => (
-                  <li key={l as string} className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" />{tr(l as string)}: <strong>{v === null ? tr("a definir") : fmtNum(v as number)}</strong></li>
+                  <li key={l as string} className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />{tr(l as string)}: <strong>{v === null ? tr("a definir") : fmtNum(v as number)}</strong></li>
                 ))}
-                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /><T>Utilizadores e módulos adicionais</T></li>
+                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-700 dark:text-emerald-400" /><T>Utilizadores e módulos adicionais</T></li>
               </ul>
               <Link to={`/registo?plano=${p.code}`} className="mt-6 rounded-lg bg-brand-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-brand-700"><T>Experimentar 14 dias</T></Link>
             </div>

@@ -18,4 +18,5 @@ const { chromium } = require("playwright");
   // volta a PT para não afetar outros testes
   await p.selectOption('header select', "pt"); await p.waitForTimeout(500);
   console.log(JSON.stringify({ errors })); await b.close();
+  if (errors.length) process.exitCode = 1;
 })().catch((e) => { console.error("FAIL", e.message); process.exit(1); });

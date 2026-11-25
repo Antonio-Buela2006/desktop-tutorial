@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { T } from "../lib/i18n";
+import { T, translate } from "../lib/i18n";
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -181,7 +181,7 @@ export function AppLayout() {
       )}
       {visible.map((g) => (
         <div key={g.title}>
-          {g.title && <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{g.title}</p>}
+          {g.title && <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{g.title}</p>}
           <ul className="space-y-0.5">
             {g.items.map((i) => (
               <li key={i.to}>
@@ -195,7 +195,7 @@ export function AppLayout() {
       ))}
       <div className="mt-auto rounded-lg bg-slate-100 p-2 text-xs dark:bg-slate-800">
         <p className="font-medium">{me.subscription.plan.name}{me.tenant.isDemo && " · Demo"}</p>
-        <p className="muted">{me.modules.length} módulo(s) ativo(s)</p>
+        <p className="text-slate-600 dark:text-slate-300">{me.modules.length} módulo(s) ativo(s)</p>
       </div>
     </nav>
   );
@@ -221,9 +221,11 @@ export function AppLayout() {
               <option value="pt">PT</option><option value="en">EN</option>
             </select>
             <button onClick={toggle} className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={dark ? "Modo claro" : "Modo escuro"}>{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>
-            <Link to="/app/notifications" className="relative rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={`Notificações (${notif.data?.unread ?? 0} por ler)`}>
-              <Bell className="h-4 w-4" />
-              {!!notif.data?.unread && <span className="absolute right-1 top-1 h-4 min-w-4 rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-4 text-white">{notif.data.unread}</span>}
+            {/* Nome acessível em texto oculto que inclui o número visível (WCAG 2.5.3 "Label in Name"). */}
+            <Link to="/app/notifications" className="relative rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800">
+              <Bell className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">{translate(lang, "Notificações")}</span>
+              {!!notif.data?.unread && <span className="absolute right-1 top-1 h-4 min-w-4 rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-4 text-white">{notif.data.unread}<span className="sr-only"> {translate(lang, "por ler")}</span></span>}
             </Link>
             <span className="hidden px-2 text-sm sm:inline">{me.user.name}</span>
             <button onClick={logout} className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={t("logout")}><LogOut className="h-4 w-4" /></button>

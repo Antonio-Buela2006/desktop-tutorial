@@ -38,7 +38,7 @@ export function Field({ label, error, hint, children }: { label: string; error?:
       <span className="label">{tx(label)}</span>
       {children}
       {hint && !error && <span className="mt-1 block text-xs muted">{tx(hint)}</span>}
-      {error && <span className="mt-1 block text-xs text-rose-600" role="alert">{error}</span>}
+      {error && <span className="mt-1 block text-xs text-rose-600 dark:text-rose-400" role="alert">{error}</span>}
     </label>
   );
 }
@@ -331,7 +331,7 @@ export function Stat({ label, value, hint, tone }: { label: string; value: React
     <div className="card p-4">
       <p className="text-xs font-medium uppercase tracking-wide muted">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {hint && <p className={cx("mt-1 text-xs", tone === "up" ? "text-emerald-600" : tone === "down" ? "text-rose-600" : "muted")}>{hint}</p>}
+      {hint && <p className={cx("mt-1 text-xs", tone === "up" ? "text-emerald-700 dark:text-emerald-400" : tone === "down" ? "text-rose-600 dark:text-rose-400" : "muted")}>{hint}</p>}
     </div>
   );
 }

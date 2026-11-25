@@ -50,8 +50,8 @@ guarda o identificador da chave (8 hex do SHA-256, nunca a chave), por isso a ro
 
 1. Gerar a nova chave no secret manager: `openssl rand -hex 32`.
 2. Publicar com `ENCRYPTION_KEY=<nova>` e `ENCRYPTION_KEYS_PREVIOUS=<antiga>` (a aplicação lê as duas e encripta com a nova).
-3. Correr `pnpm --filter api keys:rotate`: re-encripta os segredos com a nova chave (idempotente; não sobrepõe valores alterados entretanto) e regista `security.keys_rotated` na auditoria.
-4. Confirmar com `pnpm --filter api keys:rotate --check` (sai com código 2 se ainda houver pendentes).
+3. Correr `pnpm --filter @nexora/api keys:rotate`: re-encripta os segredos com a nova chave (idempotente; não sobrepõe valores alterados entretanto) e regista `security.keys_rotated` na auditoria.
+4. Confirmar com `pnpm --filter @nexora/api keys:rotate --check` (sai com código 2 se ainda houver pendentes).
 5. Retirar a antiga de `ENCRYPTION_KEYS_PREVIOUS` só quando já não for precisa para restaurar backups antigos
    (os backups são lidos com qualquer chave do porta-chaves). Guardá-la no secret manager até esses backups expirarem.
 

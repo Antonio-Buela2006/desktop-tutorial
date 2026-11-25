@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.0 — 2026-11-25
+- Acessibilidade (spec 11.2, objetivo WCAG 2.2 AA) verificada com axe-core em 50 páginas: site público, aplicação em tema claro e escuro, e portal Nexora. Passou de 57 violações graves para 0:
+  - contraste insuficiente: títulos de secção do menu, texto secundário sobre fundos cinzentos, e verde, laranja e vermelho em texto pequeno (claro e escuro);
+  - ícone de notificações com nome acessível que inclui o número visível (WCAG 2.5.3);
+  - campo da duração do acesso de suporte e escolha do novo administrador principal com etiqueta.
+- Novo teste `tests/e2e/a11y.cjs`, que falha com violações graves ou críticas.
+- Integração contínua: nova tarefa que arranca a aplicação com dados fictícios e corre os testes no navegador (fluxos principais, inglês e acessibilidade); os testes de navegador passam a falhar quando há erros na página.
+
 ## 0.18.0 — 2026-11-25
 - Tarefas periódicas seguras com vários processos:
   - corrigido o risco de faturas de renovação duplicadas quando duas execuções corriam em simultâneo; há agora um índice único por empresa e período, e as faturas duplicadas que já existam são marcadas para revisão sem serem apagadas;

@@ -44,5 +44,6 @@ const B0 = process.env.BASE_URL || "http://localhost:5173";
   await s.click("text=Continuar"); await s.click("text=Continuar"); await s.check('input[type=checkbox]'); await s.click("text=Criar demonstração");
   await s.waitForURL(/security/); await s.waitForSelector("text=Configurar 2FA"); await s.screenshot({ path: OUT + "18-signup-2fa.png" });
   console.log(JSON.stringify({ errors, mobileOverflow: overflow }));
+  if (errors.length || overflow) process.exitCode = 1;
   await browser.close();
 })().catch((e) => { console.error("E2E FAIL", e.message); process.exit(1); });

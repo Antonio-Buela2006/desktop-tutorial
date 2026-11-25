@@ -400,4 +400,7 @@ export const EN: Record<string, string> = {
   "Sem execução bem-sucedida recente: verifique se o worker está a correr.": "No recent successful run: check that the worker is running.",
   "Erro": "Error",
   "Ainda sem execuções registadas.": "No runs recorded yet.",
+  "por ler": "unread",
+  "Utilizador de destino": "Target user",
+  "Duração em horas": "Duration in hours",
 };
