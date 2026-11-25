@@ -82,3 +82,67 @@ export function simulatePriceChange(
     limitations: ["Simulação ilustrativa; não considera concorrência, sazonalidade ou custos fixos."],
   };
 }
+
+/* ---------------- Previsão de rutura de stock ---------------- */
+export type StockCoverItem = { sku: string; name: string; stockQty: number; soldQty: number; reorderLevel: number };
+
+/**
+ * Dias de cobertura por produto: stock atual ÷ consumo médio diário no período observado.
+ * Produtos sem vendas no período não têm previsão (consumo desconhecido), em vez de "infinito".
+ */
+export function stockCover(items: StockCoverItem[], days: number, today = new Date()) {
+  const rows = items
+    .map((p) => {
+      const avgDaily = p.soldQty / days;
+      if (avgDaily <= 0) return { ...p, avgDaily: 0, daysOfCover: null as number | null, stockoutDate: null as string | null, reorderInDays: null as number | null };
+      const daysOfCover = Math.max(0, Math.floor(p.stockQty / avgDaily));
+      const stockoutDate = new Date(today.getTime() + daysOfCover * 86_400_000).toISOString().slice(0, 10);
+      // dias até atingir o nível de reposição (0 = já está abaixo)
+      const reorderInDays = Math.max(0, Math.floor((p.stockQty - p.reorderLevel) / avgDaily));
+      return { ...p, avgDaily: Math.round(avgDaily * 100) / 100, daysOfCover, stockoutDate, reorderInDays };
+    })
+    .sort((a, b) => (a.daysOfCover ?? Infinity) - (b.daysOfCover ?? Infinity));
+  return {
+    method: `Consumo médio diário das vendas confirmadas dos últimos ${days} dias`,
+    periodDays: days,
+    items: rows,
+    atRisk: rows.filter((r) => r.daysOfCover !== null && r.daysOfCover <= 14).length,
+    withoutSales: rows.filter((r) => r.daysOfCover === null).length,
+    assumptions: ["O ritmo de vendas mantém-se igual à média do período observado.", "Não há receções de mercadoria nem transferências pendentes durante o período."],
+    limitations: [
+      "Não capta sazonalidade, promoções nem ruturas passadas (dias sem stock reduzem a média).",
+      "Produtos sem vendas no período não têm previsão.",
+      "Estimativa, não uma certeza.",
+    ],
+  };
+}
+
+/* ---------------- Previsão de tesouraria ---------------- */
+/**
+ * Prevê receitas e despesas mensais separadamente (regressão linear) e combina-as no saldo do mês.
+ * O intervalo do saldo é conservador: receita baixa − despesa alta, receita alta − despesa baixa.
+ */
+export function cashflowForecast(income: { period: string; value: number }[], expense: { period: string; value: number }[], horizon: number, nextPeriods: string[]) {
+  const inc = linearForecast(income, horizon, nextPeriods);
+  const exp = linearForecast(expense, horizon, nextPeriods);
+  const sufficientData = inc.sufficientData && exp.sufficientData;
+  const net = sufficientData
+    ? inc.predictions.map((p, i) => ({ period: p.period, value: p.value - exp.predictions[i].value, low: p.low - exp.predictions[i].high, high: p.high - exp.predictions[i].low }))
+    : [];
+  return {
+    method: "Regressão linear sobre receitas e despesas mensais aprovadas, previstas em separado",
+    history: income.map((h, i) => ({ period: h.period, income: h.value, expense: expense[i]?.value ?? 0, net: h.value - (expense[i]?.value ?? 0) })),
+    income: inc.predictions,
+    expense: exp.predictions,
+    net,
+    cumulativeNet: net.reduce((s, n) => s + n.value, 0),
+    confidenceLevel: sufficientData ? 0.8 : 0,
+    sufficientData,
+    assumptions: sufficientData ? ["Receitas e despesas mantêm a tendência do histórico.", "Só são considerados movimentos aprovados; pendentes e futuros não entram."] : [],
+    limitations: [
+      ...new Set([...inc.limitations, ...exp.limitations]),
+      "O intervalo do saldo combina os extremos das duas previsões e é deliberadamente largo.",
+      "Não inclui saldo bancário inicial nem prazos de recebimento/pagamento.",
+    ],
+  };
+}

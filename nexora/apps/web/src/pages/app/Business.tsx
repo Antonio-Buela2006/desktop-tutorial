@@ -193,6 +193,10 @@ export function Products() {
   const [low, setLow] = useState(params.get("lowStock") === "1");
   const [tab, setTab] = useState(params.get("tab") === "transfers" ? "transfers" : "products");
   const list = useList("products", "/api/inventory/products", low ? { lowStock: "true" } : {});
+  const { tr } = useI18n();
+  // Previsão de rutura (vendas dos últimos 90 dias), por SKU
+  const forecast = useApi<any>(["stock-forecast"], "/api/inventory/stock-forecast");
+  const cover = new Map<string, any>((forecast.data?.items ?? []).map((i: any) => [i.sku, i]));
   const [edit, setEdit] = useState<any | null>(null);
   const [adjust, setAdjust] = useState<any | null>(null);
   const [transfer, setTransfer] = useState<any | null>(null);
@@ -232,6 +236,11 @@ export function Products() {
                   {!me.membership.branchScope && <>Central {fmtNum(r.centralQty)}</>}
                   {r.levels.filter((l: any) => l.qty !== 0).map((l: any) => <span key={l.branchId}> · {bName(l.branchId)} {fmtNum(l.qty)}</span>)}
                   {r.inTransit > 0 && <span className="text-amber-600"> · <T>em trânsito</T> {fmtNum(r.inTransit)}</span>}
+                </p>
+              )}
+              {cover.get(r.sku)?.daysOfCover != null && cover.get(r.sku).daysOfCover <= 60 && (
+                <p className={`mt-1 text-xs ${cover.get(r.sku).daysOfCover <= 14 ? "text-rose-600" : "text-amber-600"}`} title={tr("Estimativa a partir das vendas dos últimos 90 dias; não é uma certeza.")}>
+                  {tr("esgota em")} ~{cover.get(r.sku).daysOfCover} {tr("dias")}
                 </p>
               )}
             </div>
@@ -413,6 +422,40 @@ function SaleForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
 }
 
 /* ============================== Finanças ============================== */
+/** Previsão de tesouraria (spec 9.8): estimativa com intervalo, pressupostos e limitações — nunca uma certeza. */
+function CashflowForecast({ currency }: { currency: string }) {
+  const { tr } = useI18n();
+  const { data, isLoading } = useApi<any>(["cashflow-forecast"], "/api/finance/cashflow-forecast");
+  if (isLoading || !data) return null;
+  return (
+    <details className="card mb-4 p-4">
+      <summary className="cursor-pointer text-sm font-semibold"><T>Previsão de tesouraria</T></summary>
+      {!data.sufficientData ? (
+        <p className="mt-2 text-sm muted"><T>Histórico financeiro insuficiente para prever (são precisos pelo menos 3 meses com movimentos aprovados).</T></p>
+      ) : (
+        <>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs uppercase muted"><th className="py-1 pr-4"><T>Mês</T></th><th className="pr-4"><T>Receitas</T></th><th className="pr-4"><T>Despesas</T></th><th><T>Saldo estimado (intervalo de 80%)</T></th></tr></thead>
+              <tbody>
+                {data.net.map((n: any, i: number) => (
+                  <tr key={n.period} className="border-t border-slate-100 dark:border-slate-800">
+                    <td className="py-1.5 pr-4 font-mono text-xs">{n.period}</td>
+                    <td className="pr-4">~{fmtMoney(data.income[i].value, currency)}</td>
+                    <td className="pr-4">~{fmtMoney(data.expense[i].value, currency)}</td>
+                    <td><strong className={n.value < 0 ? "text-rose-600" : ""}>~{fmtMoney(n.value, currency)}</strong> <span className="text-xs muted">({fmtMoney(n.low, currency)} – {fmtMoney(n.high, currency)})</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs muted">{tr("Método")}: {tr(data.method)}. {tr("Limitações")}: {data.limitations.map((l: string) => tr(l)).join(" ")}</p>
+        </>
+      )}
+    </details>
+  );
+}
+
 export function Finance() {
   const me = useMeCtx();
   const [status, setStatus] = useState("");
@@ -427,6 +470,7 @@ export function Finance() {
     <>
       <PageHeader title="Finanças" subtitle={`Receitas e despesas. Despesas a partir de ${fmtMoney(list.data?.approvalThreshold ?? 500000, cur)} exigem aprovação de outra pessoa.`} actions={can(me, "finance.create") && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> <T>Novo movimento</T></Button>} />
       {decide.error && <div className="mb-3"><ErrorText error={decide.error} /></div>}
+      <CashflowForecast currency={cur} />
       <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
         toolbar={<><BranchSelect value={branch} onChange={setBranch} /><Select aria-label="Filtrar estado" value={status} onChange={(e) => setStatus(e.target.value)} className="w-48"><option value="">Todos os estados</option><option value="pending_approval">Por aprovar</option><option value="approved">Aprovados</option><option value="rejected">Rejeitados</option></Select></>}
         columns={[

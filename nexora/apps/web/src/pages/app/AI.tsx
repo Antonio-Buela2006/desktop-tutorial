@@ -75,8 +75,8 @@ function Chat() {
     }
   };
   const suggestions = lang === "en"
-    ? ["Business overview", "Which products are low on stock?", "Forecast sales", "Simulate a 10% price increase"]
-    : ["Resumo do negócio", "Que produtos têm stock baixo?", "Previsão de vendas", "Simular aumento de preço de 10%", "Ajustar stock do SKU-002: acrescentar 20 unidades"];
+    ? ["Business overview", "Which products are low on stock?", "Forecast sales", "Forecast stock-outs", "Forecast cash flow", "Simulate a 10% price increase"]
+    : ["Resumo do negócio", "Que produtos têm stock baixo?", "Previsão de vendas", "Previsão de rutura de stock", "Previsão de tesouraria", "Simular aumento de preço de 10%", "Ajustar stock do SKU-002: acrescentar 20 unidades"];
   return (
     <div className="card flex h-[calc(100vh-15rem)] min-h-[420px] flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">

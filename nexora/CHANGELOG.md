@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0 — 2026-11-25
+- Previsão de rutura de stock (spec 9.8): dias de cobertura, data provável de esgotar e dias até ao nível de reposição por produto, a partir das vendas confirmadas dos últimos 90 dias; respeita o âmbito por unidade. Visível na lista de produtos ("esgota em ~N dias") e no assistente.
+- Previsão de tesouraria: receitas, despesas e saldo mensal dos próximos meses, com intervalo de 80% conservador, pressupostos e limitações; só movimentos aprovados. Visível nas Finanças e no assistente.
+- Novas ferramentas da IA `forecast_stock` e `forecast_cashflow`, com sugestões no assistente; o assistente local escolhe a previsão conforme a pergunta.
+- Endpoints `GET /api/inventory/stock-forecast` e `GET /api/finance/cashflow-forecast` (estatística determinística, sem consumo de créditos).
+- 101 testes.
+
 ## 0.12.0 — 2026-11-24
 - Registo de auditoria em inglês: cada ação tem uma descrição em PT/EN (94 ações); o resumo original continua guardado sem alterações, porque faz parte da cadeia de hash, e fica visível ao passar o rato.
 - Nomes das permissões em inglês, aplicados no servidor.

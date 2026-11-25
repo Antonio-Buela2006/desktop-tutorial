@@ -5,13 +5,13 @@
  * direto à base de dados.
  */
 import { m } from "../core/messages.js";
-import { and, asc, eq, gte, ilike, isNull, lte, sum } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, inArray, isNull, lt, lte, sql, sum } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
-import { customers, financeTransactions, products, salesOrders } from "../db/schema.js";
+import { customers, financeTransactions, products, salesOrders, stockLevels } from "../db/schema.js";
 import { authorize, branchCondition, type Ctx } from "../core/context.js";
 import { adjustStock, createCustomer, createFinanceTx, customerBody, dashboardKpis, monthlySales } from "../modules/business.routes.js";
-import { linearForecast, simulatePriceChange } from "./predict.js";
+import { cashflowForecast, linearForecast, simulatePriceChange, stockCover } from "./predict.js";
 
 export type Sensitivity = "read" | "simple_write" | "sensitive";
 
@@ -34,6 +34,42 @@ const empty = { type: "object", properties: {}, additionalProperties: false };
 function nextMonths(k: number) {
   const now = new Date();
   return Array.from({ length: k }, (_, i) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i + 1, 1)).toISOString().slice(0, 7));
+}
+
+/** Stock e vendas dos últimos `days` dias por produto, no âmbito de unidades do utilizador. */
+export async function stockCoverData(ctx: Ctx, days = 90) {
+  const since = new Date(Date.now() - days * 86_400_000);
+  const prods = await db.select({ id: products.id, sku: products.sku, name: products.name, stockQty: products.stockQty, reorderLevel: products.reorderLevel }).from(products)
+    .where(and(eq(products.tenantId, ctx.tenant.id), isNull(products.deletedAt)));
+  // utilizadores restritos a unidades: stock só das suas unidades
+  if (ctx.branchScope) {
+    const lv = await db.select({ productId: stockLevels.productId, qty: sum(stockLevels.qty) }).from(stockLevels)
+      .where(and(eq(stockLevels.tenantId, ctx.tenant.id), inArray(stockLevels.branchId, ctx.branchScope))).groupBy(stockLevels.productId);
+    const by = new Map(lv.map((l) => [l.productId, Number(l.qty ?? 0)]));
+    for (const p of prods) p.stockQty = by.get(p.id) ?? 0;
+  }
+  const orders = await db.select({ lines: salesOrders.lines }).from(salesOrders)
+    .where(and(eq(salesOrders.tenantId, ctx.tenant.id), eq(salesOrders.status, "confirmed"), isNull(salesOrders.deletedAt), gte(salesOrders.soldAt, since), branchCondition(ctx, salesOrders.branchId)));
+  const sold = new Map<string, number>();
+  for (const o of orders) for (const l of o.lines) sold.set(l.productId, (sold.get(l.productId) ?? 0) + l.quantity);
+  return stockCover(prods.map((p) => ({ sku: p.sku, name: p.name, stockQty: p.stockQty, reorderLevel: p.reorderLevel, soldQty: sold.get(p.id) ?? 0 })), days);
+}
+
+/** Receitas e despesas aprovadas por mês (últimos `months` meses completos), no âmbito do utilizador. */
+export async function cashflowData(ctx: Ctx, months = 12, horizon = 3) {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, 1)).toISOString().slice(0, 10);
+  const thisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  const month = sql<string>`to_char(${financeTransactions.occurredOn}, 'YYYY-MM')`;
+  const rows = await db.select({ month, kind: financeTransactions.kind, total: sum(financeTransactions.amount) }).from(financeTransactions)
+    .where(and(eq(financeTransactions.tenantId, ctx.tenant.id), eq(financeTransactions.status, "approved"), isNull(financeTransactions.deletedAt), gte(financeTransactions.occurredOn, start), lt(financeTransactions.occurredOn, thisMonth), branchCondition(ctx, financeTransactions.branchId)))
+    .groupBy(month, financeTransactions.kind);
+  const periods = Array.from({ length: months }, (_, i) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months + i, 1)).toISOString().slice(0, 7));
+  const val = (p: string, k: string) => Number(rows.find((r) => r.month === p && r.kind === k)?.total ?? 0);
+  // ignora os meses iniciais sem qualquer movimento (empresa ainda não usava a Nexora)
+  const first = periods.findIndex((p) => val(p, "income") || val(p, "expense"));
+  const used = first < 0 ? [] : periods.slice(first);
+  return cashflowForecast(used.map((p) => ({ period: p, value: val(p, "income") })), used.map((p) => ({ period: p, value: val(p, "expense") })), horizon, [thisMonth.slice(0, 7), ...nextMonths(horizon - 1)]);
 }
 
 export const TOOLS: AITool[] = [
@@ -91,6 +127,28 @@ export const TOOLS: AITool[] = [
       // Períodos previstos: mês corrente (incompleto) + meses seguintes
       return linearForecast(train, months, [hist[hist.length - 1].month, ...nextMonths(months - 1)]);
     },
+  },
+  {
+    name: "forecast_stock",
+    description: "Previsão de rutura de stock: dias de cobertura e data provável de esgotar por produto, com base nas vendas dos últimos 90 dias.",
+    module: "inventory",
+    permission: "inventory.view",
+    sensitivity: "read",
+    costKey: "forecast",
+    schema: z.object({}),
+    jsonSchema: empty,
+    run: (ctx) => stockCoverData(ctx),
+  },
+  {
+    name: "forecast_cashflow",
+    description: "Previsão de tesouraria: receitas, despesas e saldo mensal dos próximos meses, com intervalo, pressupostos e limitações.",
+    module: "finance",
+    permission: "finance.view",
+    sensitivity: "read",
+    costKey: "forecast",
+    schema: z.object({ months: z.number().int().min(1).max(6).default(3) }),
+    jsonSchema: { type: "object", properties: { months: { type: "integer", minimum: 1, maximum: 6 } }, additionalProperties: false },
+    run: (ctx, i) => cashflowData(ctx, 12, i.months ?? 3),
   },
   {
     name: "simulate_price_change",

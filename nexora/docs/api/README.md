@@ -19,7 +19,7 @@ Convenções:
 | Público | `/api/public/*`, `/api/health` |
 | Autenticação, 2FA, sessões, convites | `/api/auth/*` |
 | Empresa (utilizadores, funções, funcionários, definições, titularidade) | `/api/company/*`, `/api/meta/permissions`, `/api/search` |
-| Negócio | `/api/dashboard`, `/api/crm/*`, `/api/inventory/*`, `/api/sales/*`, `/api/finance/*` |
+| Negócio | `/api/dashboard`, `/api/crm/*`, `/api/inventory/*` (inclui guias `transfer-orders` e `stock-forecast`), `/api/sales/*`, `/api/finance/*` (inclui `cashflow-forecast`) |
 | Subscrição e faturação | `/api/billing/*`, `/api/payments/sandbox/*`, `/api/webhooks/*` |
 | IA | `/api/ai/*` |
 | Governação | `/api/audit*`, `/api/notifications*`, `/api/trash*`, `/api/exports*`, `/api/support/*` |

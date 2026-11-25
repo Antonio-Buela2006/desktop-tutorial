@@ -33,7 +33,9 @@ export const localProvider: AIProvider = {
     const deny = en ? "You do not have access to this information (permissions or AI policy)." : "Não tem acesso a esta informação (permissões ou política de IA).";
 
     const isAdjust = /\bSKU-\d+\b/i.test(message) && /(ajust|adjust|acrescent|add|retir|remov)/.test(m);
-    if (!isAdjust && /(stock|estoque|rutura|repor|low stock|inventory)/.test(m)) {
+    const wantsForecast = /(previs|forecast|prever|tend[eê]ncia|trend|esgot|run out)/.test(m);
+    const forecastKind = !wantsForecast ? null : /(tesouraria|cash ?flow|fluxo de caixa|saldo|despesa|expense|receita|income|finan)/.test(m) ? "cashflow" : /(stock|estoque|rutura|esgot|run out|inventory)/.test(m) ? "stock" : "sales";
+    if (!isAdjust && !forecastKind && /(stock|estoque|rutura|repor|low stock|inventory)/.test(m)) {
       if (!has("list_low_stock")) return { text: deny, provider: "local", model: null };
       const r = await callTool("list_low_stock", {});
       const rows = (r.data as any[]) ?? [];
@@ -62,7 +64,30 @@ export const localProvider: AIProvider = {
       const r = await callTool("record_expense", { amount, category: (expense[2] ?? "Diversos").trim() || "Diversos", description: message.slice(0, 200), occurredOn: new Date().toISOString().slice(0, 10) });
       out.push(r.pendingApproval ? (en ? "Expense proposed — financial movements require human approval." : "Despesa proposta — movimentos financeiros exigem aprovação humana.") : r.error ?? "OK");
     }
-    if (/(previs|forecast|prever|tend[eê]ncia|trend)/.test(m)) {
+    if (forecastKind === "stock") {
+      if (!has("forecast_stock")) return { text: deny, provider: "local", model: null };
+      const f = (await callTool("forecast_stock", {})).data as any;
+      const risky = (f?.items ?? []).filter((i: any) => i.daysOfCover !== null).slice(0, 8);
+      out.push(
+        risky.length
+          ? (en ? "Stock-out forecast (estimate, not a certainty):\n" : "Previsão de rutura de stock (estimativa, não é uma certeza):\n") +
+              risky.map((i: any) => `• ${i.sku} ${i.name}: ${i.stockQty} ${en ? "in stock" : "em stock"}, ~${i.avgDaily}/${en ? "day" : "dia"} → ${en ? "runs out in" : "esgota em"} ~${i.daysOfCover} ${en ? "days" : "dias"} (${i.stockoutDate})`).join("\n") +
+              `\n${en ? "Method" : "Método"}: ${f.method}. ${f.assumptions.join(" ")} ${en ? "Limitations" : "Limitações"}: ${f.limitations.join(" ")}`
+          : en ? "No sales in the last 90 days, so there is no consumption to forecast from." : "Sem vendas nos últimos 90 dias: não há consumo a partir do qual prever.",
+      );
+    }
+    if (forecastKind === "cashflow") {
+      if (!has("forecast_cashflow")) return { text: deny, provider: "local", model: null };
+      const f = (await callTool("forecast_cashflow", { months: 3 })).data as any;
+      if (!f?.sufficientData) out.push(en ? "Not enough financial history for a cash-flow forecast (min. 3 months)." : "Histórico financeiro insuficiente para prever a tesouraria (mín. 3 meses).");
+      else
+        out.push(
+          (en ? "Cash-flow forecast (80% interval, not a certainty):\n" : "Previsão de tesouraria (intervalo de 80%, não é uma certeza):\n") +
+            f.net.map((n: any, i: number) => `• ${n.period}: ${en ? "income" : "receitas"} ~${fmt(f.income[i].value)}, ${en ? "expenses" : "despesas"} ~${fmt(f.expense[i].value)}, ${en ? "balance" : "saldo"} ~${fmt(n.value)} (${fmt(n.low)} – ${fmt(n.high)})`).join("\n") +
+            `\n${en ? "Method" : "Método"}: ${f.method}. ${en ? "Limitations" : "Limitações"}: ${f.limitations.join(" ")}`,
+        );
+    }
+    if (forecastKind === "sales") {
       if (!has("forecast_sales")) return { text: deny, provider: "local", model: null };
       const r = await callTool("forecast_sales", { months: 3 });
       const f = r.data as any;
@@ -102,8 +127,8 @@ export const localProvider: AIProvider = {
     if (!out.length)
       out.push(
         en
-          ? "I can summarise your indicators, list low stock, forecast sales, simulate price changes, search or create customers and propose stock adjustments or expenses (which require approval). Try: “forecast sales” or “simulate a 10% price increase”."
-          : "Posso resumir indicadores, listar stock baixo, prever vendas, simular alterações de preço, pesquisar ou criar clientes e propor ajustes de stock ou despesas (sujeitos a aprovação). Experimente: “previsão de vendas” ou “simular aumento de preço de 10%”.",
+          ? "I can summarise your indicators, list low stock, forecast sales, stock-outs and cash flow, simulate price changes, search or create customers and propose stock adjustments or expenses (which require approval). Try: “forecast sales” or “simulate a 10% price increase”."
+          : "Posso resumir indicadores, listar stock baixo, prever vendas, ruturas de stock e tesouraria, simular alterações de preço, pesquisar ou criar clientes e propor ajustes de stock ou despesas (sujeitos a aprovação). Experimente: “previsão de vendas” ou “simular aumento de preço de 10%”.",
       );
     return { text: out.join("\n\n"), provider: "local", model: null };
   },

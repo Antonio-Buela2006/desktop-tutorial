@@ -11,7 +11,7 @@ Transparência exigida pela especificação (§17, §20). Lista honesta do estad
 6. **RLS no PostgreSQL**: ativo como segunda barreira (ADR-0003) em todas as tabelas com `tenant_id`. Ficam fora, por atravessarem empresas por natureza: rotas de identidade (`/api/auth/*`), portal Nexora, webhooks e jobs, que continuam protegidos pela aplicação. Tabelas globais (utilizadores, planos) não têm RLS. Cada pedido de empresa ocupa uma ligação do pool enquanto dura (`DB_POOL_MAX`).
 7. **Filas**: jobs em processo/worker sem Redis/BullMQ (ADR-0004).
 8. **Ficheiros/documentos**: documentos de funcionários e clientes com armazenamento local ou S3. Antivírus ClamAV suportado (`CLAMAV_HOST`), com falha fechada; é preciso disponibilizar o serviço clamd na infraestrutura.
-9. **IA**: previsões por regressão linear simples (com intervalos e limitações explícitas); aprendizagem
+9. **IA**: previsões de vendas e de tesouraria por regressão linear simples e de rutura de stock pelo consumo médio dos últimos 90 dias (com intervalos, pressupostos e limitações explícitos); simulação de preços e custos; aprendizagem
    contextual limita-se a usar o histórico da própria empresa; sem modelos preditivos treinados.
    Voz depende do suporte do navegador (Web Speech API), com alternativa textual.
 10. **Observabilidade**: logs estruturados com request id e métricas Prometheus em `/api/metrics`; tracing OpenTelemetry e captura de erros (Sentry) por integrar.
