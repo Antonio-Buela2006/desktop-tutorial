@@ -1,3 +1,4 @@
+import "./observability/tracing-init.js";
 import { runAllJobs } from "./jobs/jobs.js";
 
 const INTERVAL = Number(process.env.WORKER_INTERVAL_MS ?? 5 * 60_000);

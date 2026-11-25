@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.15.0 — 2026-11-25
+- Rastreio distribuído com OpenTelemetry, desligado por omissão e ligado por `OTEL_EXPORTER_OTLP_ENDPOINT` (qualquer coletor OTLP/HTTP; `OTEL_TRACES_EXPORTER=console` para depurar):
+  - spans por pedido, hooks e handler (`@fastify/otel` + instrumentação HTTP), propagação W3C `traceparent`;
+  - empresa e membro (UUID) no span do pedido; chamada ao fornecedor de IA e cada tarefa automática em spans próprios; erros 5xx registados no span;
+  - cabeçalho `x-trace-id` nas respostas para correlacionar erros reportados;
+  - amostragem configurável (`OTEL_TRACES_SAMPLER_RATIO`); health e métricas não são rastreados;
+  - privacidade: sem corpos, cabeçalhos ou cookies; query string removida e tokens no URL substituídos por `:redacted`.
+- Os registos de pedidos do servidor deixam de incluir a query string e os tokens no caminho (antes, por exemplo, o token dos convites ficava no registo).
+- 106 testes.
+
 ## 0.14.0 — 2026-11-25
 - Receção parcial das guias de transferência: indica-se a quantidade recebida por linha (por omissão, tudo).
   - Não se pode receber mais do que foi expedido; uma falta exige motivo.

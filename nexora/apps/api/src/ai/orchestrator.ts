@@ -7,6 +7,7 @@ import { auditBase, authorize, type Ctx } from "../core/context.js";
 import { sha256 } from "../core/crypto.js";
 import { AppError, forbidden } from "../core/errors.js";
 import { notifyByPermission } from "../core/notify.js";
+import { withSpan } from "../observability/tracing.js";
 import { describePreview, isMsg, m, render, asLocale, type Locale } from "../core/messages.js";
 import { getSetting } from "../modules/billing.routes.js";
 import { getProvider, localProvider, type CallTool } from "./providers.js";
@@ -82,7 +83,11 @@ export async function chat(ctx: Ctx, message: string, locale: string) {
   let result;
   let status = "ok";
   try {
-    result = await provider.run({ message, locale: lang, tools, callTool, companyName: ctx.tenant.name });
+    result = await withSpan("ai.provider", { "nexora.ai.provider": provider.name ?? "unknown", "nexora.ai.tools": tools.length }, async (span) => {
+      const r = await provider.run({ message, locale: lang, tools, callTool, companyName: ctx.tenant.name });
+      span.setAttributes({ "nexora.ai.model": r.model ?? "local", "nexora.ai.tool_calls": calls.length });
+      return r;
+    });
   } catch (e: any) {
     if (e instanceof AppError) throw e;
     // Fallback quando o fornecedor externo está indisponível.

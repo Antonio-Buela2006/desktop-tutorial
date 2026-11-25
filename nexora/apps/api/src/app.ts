@@ -11,6 +11,8 @@ import { config } from "./config.js";
 import { AppError } from "./core/errors.js";
 import { contextHook, releaseTenantScope, tenantScopeHook } from "./core/context.js";
 import { detectRls } from "./db/rls.js";
+import { SpanStatusCode } from "@opentelemetry/api";
+import { fastifyTracingPlugin, requestSpan, scrubUrl } from "./observability/tracing.js";
 import { authRoutes } from "./modules/auth.routes.js";
 import { companyRoutes } from "./modules/company.routes.js";
 import { governanceRoutes } from "./modules/governance.routes.js";
@@ -31,11 +33,21 @@ import { registerObservability } from "./core/observability.js";
 export async function buildApp() {
   await detectRls();
   const app = Fastify({
-    logger: config.isTest ? false : { level: "info", redact: ["req.headers.cookie", "req.headers.authorization"] },
+    logger: config.isTest
+      ? false
+      : {
+          level: "info",
+          redact: ["req.headers.cookie", "req.headers.authorization"],
+          // Sem query string nem tokens no caminho (convites, recuperação de palavra-passe).
+          serializers: { req: (r: { method: string; url: string; ip?: string }) => ({ method: r.method, url: scrubUrl(r.url), remoteAddress: r.ip }) },
+        },
     trustProxy: true,
     bodyLimit: 1_000_000,
     genReqId: (req) => (req.headers["x-request-id"] as string) || randomUUID(),
   });
+  // Rastreio: tem de ser o primeiro plugin, para cobrir os hooks e as rotas definidos a seguir.
+  const tracingPlugin = fastifyTracingPlugin();
+  if (tracingPlugin) await app.register(tracingPlugin);
 
   // Guarda o corpo bruto (necessário para validar assinaturas de webhooks).
   app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
@@ -59,6 +71,9 @@ export async function buildApp() {
 
   app.addHook("onRequest", async (req, reply) => {
     reply.header("x-request-id", req.id);
+    // Com rastreio ativo, devolve o trace id para correlacionar um erro reportado com o trace no coletor.
+    const span = requestSpan(req);
+    if (span) reply.header("x-trace-id", span.spanContext().traceId);
   });
   app.addHook("preHandler", contextHook);
   app.addHook("preHandler", tenantScopeHook);
@@ -70,6 +85,11 @@ export async function buildApp() {
     if (err.statusCode === 429) return reply.code(429).send({ error: { code: "RATE_LIMITED", message: "Demasiados pedidos. Aguarde um momento." } });
     if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: { code: err.code ?? "BAD_REQUEST", message: err.message } });
     req.log.error(err);
+    const span = requestSpan(req);
+    if (span) {
+      span.recordException(err);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: String(err?.message ?? err) });
+    }
     // Nunca expõe detalhes internos.
     return reply.code(500).send({ error: { code: "INTERNAL", message: "Ocorreu um erro inesperado.", traceId: req.id } });
   });

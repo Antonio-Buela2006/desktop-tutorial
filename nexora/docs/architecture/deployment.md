@@ -21,6 +21,7 @@ Em produção o fornecedor `sandbox` é recusado e os links de convite não são
 - [ ] TLS/HTTPS, WAF e rate limiting no edge; cookies `secure` (automático com `NODE_ENV=production`).
 - [ ] Agendar backups (ex.: cron a cada 4h: `pnpm backup`) e o teste de restauro diário (`pnpm backup:verify`,
       sai com código ≠ 0 se falhar → alerta). Sincronizar `BACKUP_DIR` para outra região. Definir RPO/RTO.
+- [ ] Rastreio: definir `OTEL_EXPORTER_OTLP_ENDPOINT` (coletor OTLP/HTTP do fornecedor escolhido), `OTEL_SERVICE_NAME` e `OTEL_TRACES_SAMPLER_RATIO` (ex.: 0.1 em produção); confirmar o cabeçalho `x-trace-id` nas respostas.
 - [ ] Observabilidade: recolher `/api/metrics` (Bearer `METRICS_TOKEN`) em Prometheus/Grafana; alertas para
       `nexora_http_errors_total`, `nexora_auth_failures_total`, `nexora_ip_blocks_total` e latência p95; logs JSON centralizados.
 - [ ] Ficheiros: `STORAGE_DRIVER=s3` com bucket privado, encriptação e versionamento; antivírus nos uploads.

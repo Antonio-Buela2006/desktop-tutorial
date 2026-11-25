@@ -1,3 +1,4 @@
+import "./observability/tracing-init.js";
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { runMigrations } from "./db/migrate.js";

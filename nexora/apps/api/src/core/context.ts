@@ -21,6 +21,7 @@ import {
   users,
 } from "../db/schema.js";
 import { sha256 } from "./crypto.js";
+import { requestSpan } from "../observability/tracing.js";
 import { AppError, forbidden, unauthorized } from "./errors.js";
 import { ADMIN_ONLY, PERMISSIONS, permissionDef } from "./permissions.js";
 import { capabilitiesFor, computeAccessState, type AccessCapabilities, type AccessState } from "./subscription.js";
@@ -206,6 +207,8 @@ export async function contextHook(req: FastifyRequest, reply: FastifyReply) {
     }
   }
   req.nx = await resolveSession(req);
+  // Identificadores técnicos (UUID) no span do pedido; nunca nomes, e-mails ou conteúdo.
+  if (req.nx) requestSpan(req)?.setAttributes({ "nexora.tenant_id": req.nx.tenant.id, "nexora.membership_id": req.nx.membership.id });
 }
 
 /**

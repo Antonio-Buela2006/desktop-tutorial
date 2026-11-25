@@ -21,6 +21,7 @@ import {
 import { audit } from "../core/audit.js";
 import { oldestUnpaidDueAt } from "../core/context.js";
 import { notifyByPermission } from "../core/notify.js";
+import { withSpan } from "../observability/tracing.js";
 import { m, render, asLocale } from "../core/messages.js";
 import { computeAccessState, daysOverdue, DAY } from "../core/subscription.js";
 import { nextInvoiceNumber } from "../core/tenantService.js";
@@ -159,12 +160,14 @@ export async function retentionReview(now = new Date()) {
 }
 
 export async function runAllJobs(now = new Date()) {
-  return {
-    renewals: await issueRenewals(now),
-    reconcile: await reconcileSubscriptions(now),
-    alerts: await runAlerts(now),
-    allowances: await resetAiAllowances(now),
-    purged: await purgeTrash(now),
-    retentionDue: await retentionReview(now),
-  };
+  // Cada tarefa num span próprio (sem rastreio ativo, withSpan é transparente).
+  const job = <T>(name: string, fn: () => Promise<T>) => withSpan(`job.${name}`, { "nexora.job": name }, () => fn());
+  return withSpan("jobs.run", {}, async () => ({
+    renewals: await job("renewals", () => issueRenewals(now)),
+    reconcile: await job("reconcile", () => reconcileSubscriptions(now)),
+    alerts: await job("alerts", () => runAlerts(now)),
+    allowances: await job("allowances", () => resetAiAllowances(now)),
+    purged: await job("purge_trash", () => purgeTrash(now)),
+    retentionDue: await job("retention_review", () => retentionReview(now)),
+  }));
 }
