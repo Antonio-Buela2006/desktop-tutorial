@@ -5,6 +5,7 @@
  * consultas de negócio passam pelo contexto de tenant obtido da sessão
  * autenticada (ver src/core/tenant.ts). Nunca se confia num tenant_id do cliente.
  */
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -330,7 +331,28 @@ export const invoices = pgTable(
     periodEnd: ts("period_end"),
     meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),
   },
-  (t) => [index("invoices_tenant").on(t.tenantId)],
+  (t) => [
+    index("invoices_tenant").on(t.tenantId),
+    // Uma só fatura de renovação por período, mesmo com dois processos de tarefas em simultâneo.
+    uniqueIndex("invoices_renewal_key").on(t.tenantId, sql`(${t.meta}->>'renewalKey')`).where(sql`(${t.meta}->>'renewalKey') is not null`),
+  ],
+);
+
+/** Execuções das tarefas periódicas (monitorização: última execução, duração, falhas). */
+export const jobRuns = pgTable(
+  "job_runs",
+  {
+    id: id(),
+    trigger: text("trigger").notNull(), // worker | inprocess | admin
+    status: text("status").notNull(), // running | ok | failed | skipped
+    startedAt: ts("started_at").notNull().defaultNow(),
+    finishedAt: ts("finished_at"),
+    durationMs: integer("duration_ms"),
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    error: text("error"),
+    host: text("host"),
+  },
+  (t) => [index("job_runs_started").on(t.startedAt)],
 );
 
 export const payments = pgTable("payments", {

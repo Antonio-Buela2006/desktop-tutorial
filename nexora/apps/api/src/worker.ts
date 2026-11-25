@@ -1,10 +1,10 @@
 import "./observability/tracing-init.js";
-import { runAllJobs } from "./jobs/jobs.js";
+import { runJobsExclusive } from "./jobs/jobs.js";
 
 const INTERVAL = Number(process.env.WORKER_INTERVAL_MS ?? 5 * 60_000);
 async function tick() {
   try {
-    const r = await runAllJobs();
+    const r = await runJobsExclusive("worker");
     console.log(new Date().toISOString(), "jobs", JSON.stringify(r));
   } catch (e) {
     console.error("worker error", e);

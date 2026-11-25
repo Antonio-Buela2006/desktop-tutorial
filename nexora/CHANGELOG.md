@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.18.0 — 2026-11-25
+- Tarefas periódicas seguras com vários processos:
+  - corrigido o risco de faturas de renovação duplicadas quando duas execuções corriam em simultâneo; há agora um índice único por empresa e período, e as faturas duplicadas que já existam são marcadas para revisão sem serem apagadas;
+  - reposição mensal de créditos de IA e cancelamento de subscrições com atualização condicional, sem movimentos nem auditoria a dobrar;
+  - exclusão mútua entre processos com advisory lock do PostgreSQL; as execuções concorrentes ficam como `skipped`.
+- Registo de execuções (`job_runs`) e painel no portal Nexora, com aviso quando o worker não corre há demasiado tempo.
+- 115 testes.
+
 ## 0.17.0 — 2026-11-25
 - Rotação da chave de encriptação em repouso sem interrupção:
   - porta-chaves com a chave atual (`ENCRYPTION_KEY`) e as anteriores (`ENCRYPTION_KEYS_PREVIOUS`, só leitura);

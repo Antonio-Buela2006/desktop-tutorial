@@ -4,7 +4,7 @@
  * Cada job é idempotente e opera tenant a tenant.
  */
 import { and, eq, inArray, isNotNull, isNull, lt, lte, sql as dsql } from "drizzle-orm";
-import { db } from "../db/client.js";
+import { db, sql } from "../db/client.js";
 import {
   aiCreditTransactions,
   aiPolicies,
@@ -17,10 +17,12 @@ import {
   products,
   subscriptions,
   tenants,
+  jobRuns,
 } from "../db/schema.js";
 import { audit } from "../core/audit.js";
 import { oldestUnpaidDueAt } from "../core/context.js";
 import { notifyByPermission } from "../core/notify.js";
+import { hostname } from "node:os";
 import { withSpan } from "../observability/tracing.js";
 import { m, render, asLocale } from "../core/messages.js";
 import { computeAccessState, daysOverdue, DAY } from "../core/subscription.js";
@@ -41,11 +43,13 @@ export async function issueRenewals(now = new Date()) {
     const [exists] = await db.select({ id: invoices.id }).from(invoices).where(and(eq(invoices.tenantId, s.tenantId), dsql`${invoices.meta}->>'renewalKey' = ${key}`));
     if (exists || p.priceMonthly === null) continue;
     const amount = s.billingCycle === "yearly" ? p.priceYearly ?? p.priceMonthly * 12 : p.priceMonthly;
-    await db.insert(invoices).values({
+    // A restrição única (tenant, renewalKey) impede duplicados mesmo com execuções simultâneas.
+    const created = await db.insert(invoices).values({
       tenantId: s.tenantId, number: nextInvoiceNumber(), kind: "subscription", status: "issued", currency: p.currency,
       lines: [{ description: `Renovação ${p.name}`, quantity: 1, unitPrice: amount, total: amount }], subtotal: amount, total: amount,
       dueAt: s.currentPeriodEnd!, periodStart: s.currentPeriodEnd, meta: { renewalKey: key },
-    });
+    }).onConflictDoNothing().returning({ id: invoices.id });
+    if (!created.length) continue;
     await notifyByPermission(s.tenantId, "billing.view", { type: "billing.renewal", title: m("billing.renewal.title"), body: m("billing.renewal.body", { date: s.currentPeriodEnd!.toISOString().slice(0, 10) }), link: "/app/billing", dedupeKey: key });
     n++;
   }
@@ -59,8 +63,9 @@ export async function reconcileSubscriptions(now = new Date()) {
     const due = await oldestUnpaidDueAt(s.tenantId);
     const state = computeAccessState(s, due, now);
     if (state === "canceled" && s.status === "active") {
-      await db.update(subscriptions).set({ status: "canceled", updatedAt: now }).where(eq(subscriptions.id, s.id));
-      await audit({ tenantId: s.tenantId, actorType: "system", action: "subscription.canceled", entityType: "subscription", entityId: s.id, summary: "Período pago terminou após cancelamento; acesso operacional suspenso, dados preservados." });
+      // Transição condicional: só quem a faz regista a auditoria.
+      const changed = await db.update(subscriptions).set({ status: "canceled", updatedAt: now }).where(and(eq(subscriptions.id, s.id), eq(subscriptions.status, "active"))).returning({ id: subscriptions.id });
+      if (changed.length) await audit({ tenantId: s.tenantId, actorType: "system", action: "subscription.canceled", entityType: "subscription", entityId: s.id, summary: "Período pago terminou após cancelamento; acesso operacional suspenso, dados preservados." });
     }
     if (state === "trial_expired") {
       await notifyByPermission(s.tenantId, "billing.view", { type: "trial.expired", severity: "critical", title: m("trial.expired.title"), body: m("trial.expired.body"), link: "/app/billing", dedupeKey: "trial-expired" });
@@ -124,7 +129,9 @@ export async function runAlerts(now = new Date()) {
 export async function resetAiAllowances(now = new Date()) {
   const wallets = await db.select().from(aiWallets).where(lt(aiWallets.periodStart, new Date(now.getTime() - 30 * DAY)));
   for (const w of wallets) {
-    await db.update(aiWallets).set({ balance: Math.max(w.balance, w.monthlyAllowance), periodStart: now }).where(eq(aiWallets.tenantId, w.tenantId));
+    const done = await db.update(aiWallets).set({ balance: Math.max(w.balance, w.monthlyAllowance), periodStart: now })
+      .where(and(eq(aiWallets.tenantId, w.tenantId), eq(aiWallets.periodStart, w.periodStart))).returning({ id: aiWallets.tenantId });
+    if (!done.length) continue; // outra execução já repôs este período
     await db.insert(aiCreditTransactions).values({ tenantId: w.tenantId, amount: Math.max(0, w.monthlyAllowance - w.balance), operation: "monthly_allowance", reason: "Renovação mensal da franquia" });
   }
 }
@@ -170,4 +177,38 @@ export async function runAllJobs(now = new Date()) {
     purged: await job("purge_trash", () => purgeTrash(now)),
     retentionDue: await job("retention_review", () => retentionReview(now)),
   }));
+}
+
+/* ---------------- Execução exclusiva e registo ---------------- */
+/** Chave do advisory lock do PostgreSQL partilhada por todos os processos (worker, API, portal). */
+export const JOBS_LOCK_KEY = 735_001;
+
+/**
+ * Executa todas as tarefas com exclusão mútua entre processos e instâncias (advisory lock numa ligação
+ * reservada) e regista a execução em `job_runs`. Se outra execução estiver em curso, não espera:
+ * regista `skipped` e devolve `{ skipped: true }`.
+ */
+export async function runJobsExclusive(trigger: "worker" | "inprocess" | "admin", now = new Date(), work: (now: Date) => Promise<Record<string, unknown>> = runAllJobs) {
+  const conn = await sql.reserve();
+  try {
+    const [{ locked }] = await conn<{ locked: boolean }[]>`select pg_try_advisory_lock(${JOBS_LOCK_KEY}) as locked`;
+    if (!locked) {
+      await db.insert(jobRuns).values({ trigger, status: "skipped", finishedAt: new Date(), durationMs: 0, host: hostname() });
+      return { skipped: true as const };
+    }
+    const started = Date.now();
+    const [run] = await db.insert(jobRuns).values({ trigger, status: "running", host: hostname() }).returning({ id: jobRuns.id });
+    try {
+      const result = await work(now);
+      await db.update(jobRuns).set({ status: "ok", finishedAt: new Date(), durationMs: Date.now() - started, result: result as Record<string, unknown> }).where(eq(jobRuns.id, run.id));
+      return { skipped: false as const, ...result };
+    } catch (e) {
+      await db.update(jobRuns).set({ status: "failed", finishedAt: new Date(), durationMs: Date.now() - started, error: String((e as Error).message).slice(0, 1000) }).where(eq(jobRuns.id, run.id));
+      throw e;
+    } finally {
+      await conn`select pg_advisory_unlock(${JOBS_LOCK_KEY})`;
+    }
+  } finally {
+    conn.release();
+  }
 }

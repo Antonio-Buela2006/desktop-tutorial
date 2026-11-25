@@ -223,10 +223,37 @@ function Reconcile({ payment, onClose }: { payment: any; onClose: () => void }) 
   );
 }
 
+/** Últimas execuções das tarefas periódicas (spec 16.3: monitorizar jobs). */
+function JobRuns() {
+  const { data } = useApi<any>(["admin-job-runs"], "/api/admin/jobs/runs");
+  if (!data) return null;
+  const tone: Record<string, "green" | "red" | "gray" | "blue"> = { ok: "green", failed: "red", skipped: "gray", running: "blue" };
+  return (
+    <Card title="Execuções das tarefas" className="mb-4">
+      {data.stale && <div className="mb-2"><Alert tone="warning"><T>Sem execução bem-sucedida recente: verifique se o worker está a correr.</T></Alert></div>}
+      <table className="w-full text-sm">
+        <thead><tr className="text-left text-xs uppercase muted"><th className="py-1"><T>Início</T></th><th><T>Origem</T></th><th><T>Estado</T></th><th><T>Duração</T></th><th><T>Erro</T></th></tr></thead>
+        <tbody>
+          {data.runs.slice(0, 10).map((r: any) => (
+            <tr key={r.id} className="border-t border-slate-100 dark:border-slate-800">
+              <td className="py-1.5">{fmtDateTime(r.startedAt)}</td>
+              <td className="font-mono text-xs">{r.trigger}{r.host ? ` · ${r.host}` : ""}</td>
+              <td><Badge tone={tone[r.status] ?? "gray"}>{r.status}</Badge></td>
+              <td>{r.durationMs != null ? `${r.durationMs} ms` : "—"}</td>
+              <td className="max-w-xs truncate text-xs text-rose-600" title={r.error ?? ""}>{r.error ?? ""}</td>
+            </tr>
+          ))}
+          {!data.runs.length && <tr><td colSpan={5} className="py-2 muted"><T>Ainda sem execuções registadas.</T></td></tr>}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
 export function AdminSettings() {
   const { data, isLoading, error } = useApi<any[]>(["admin-settings"], "/api/admin/settings");
   const save = useAction(({ key, value }: any) => put(`/api/admin/settings/${key}`, { value }), [["admin-settings"]]);
-  const run = useAction(() => post("/api/admin/jobs/run"));
+  const run = useAction(() => post("/api/admin/jobs/run"), [["admin-job-runs"]]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   useEffect(() => { if (data) setDrafts(Object.fromEntries(data.map((s) => [s.key, JSON.stringify(s.value, null, 2)]))); }, [data]);
   if (isLoading) return <Loading />;
@@ -234,7 +261,8 @@ export function AdminSettings() {
   return (
     <>
       <PageHeader title="Parâmetros globais" subtitle="Custos de IA, pacotes de créditos, retenção, impostos e fornecedores de pagamento." actions={<Button variant="secondary" loading={run.isPending} onClick={() => run.mutate(undefined)}><T>Executar jobs agora</T></Button>} />
-      {run.data && <div className="mb-3"><Alert tone="success">Jobs executados: {JSON.stringify(run.data)}</Alert></div>}
+      {run.data && <div className="mb-3">{(run.data as any).skipped ? <Alert tone="warning"><T>Já havia uma execução em curso noutro processo; esta foi ignorada.</T></Alert> : <Alert tone="success">Jobs executados: {JSON.stringify(run.data)}</Alert>}</div>}
+      <JobRuns />
       {save.error && <ErrorText error={save.error} />}
       <div className="grid gap-4 md:grid-cols-2">{data!.map((s) => (
         <Card key={s.key} title={s.key} actions={<Button size="sm" onClick={() => { try { save.mutate({ key: s.key, value: JSON.parse(drafts[s.key]) }); } catch { alert("JSON inválido"); } }}><T>Guardar</T></Button>}>

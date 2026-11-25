@@ -24,6 +24,7 @@ import {
   subscriptions,
   supportAccessGrants,
   tenants,
+  jobRuns,
 } from "../db/schema.js";
 import { audit } from "../core/audit.js";
 import { decrypt, encrypt, randomToken, sha256, verifyPassword } from "../core/crypto.js";
@@ -33,7 +34,7 @@ import { computeAccessState, DAY } from "../core/subscription.js";
 import { oldestUnpaidDueAt } from "../core/context.js";
 import { usageOf } from "../core/tenantService.js";
 import { confirmPayment } from "./billing.routes.js";
-import { runAllJobs } from "../jobs/jobs.js";
+import { runJobsExclusive } from "../jobs/jobs.js";
 import { DATASET_TABLES } from "./governance.routes.js";
 import { assertIpAllowed, recordAuthFailure } from "../core/ipguard.js";
 
@@ -241,9 +242,20 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.post("/api/admin/jobs/run", async (req) => {
     const { admin } = await requireAdmin(req, "jobs");
-    const r = await runAllJobs();
-    await audit({ tenantId: null, ...adminAudit(admin, req), action: "admin.jobs_run", summary: "Jobs periódicos executados manualmente.", metadata: { ...r } });
+    const r = await runJobsExclusive("admin");
+    await audit({ tenantId: null, ...adminAudit(admin, req), action: "admin.jobs_run", summary: r.skipped ? "Execução manual de jobs ignorada: já havia uma em curso." : "Jobs periódicos executados manualmente.", metadata: { ...r } });
     return r;
+  });
+
+  /** Últimas execuções das tarefas periódicas (monitorização). */
+  app.get("/api/admin/jobs/runs", async (req) => {
+    await requireAdmin(req, "jobs");
+    const runs = await db.select().from(jobRuns).orderBy(desc(jobRuns.startedAt)).limit(50);
+    const lastOk = runs.find((r) => r.status === "ok");
+    // Atrasada se não houver execução bem-sucedida há mais de 3 intervalos do worker (por omissão 5 min).
+    const interval = Number(process.env.WORKER_INTERVAL_MS ?? 5 * 60_000);
+    const stale = !lastOk || Date.now() - lastOk.startedAt.getTime() > 3 * interval;
+    return { runs, lastOkAt: lastOk?.startedAt ?? null, stale, failuresInLast10: runs.slice(0, 10).filter((r) => r.status === "failed").length };
   });
 
   app.get("/api/admin/audit", async (req) => {

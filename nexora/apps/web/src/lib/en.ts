@@ -395,4 +395,9 @@ export const EN: Record<string, string> = {
   "A diferença fica registada como perda em trânsito: saiu da origem na expedição e não entra no destino. Quem aprova transferências é avisado.": "The difference is recorded as a loss in transit: it left the origin when shipped and does not enter the destination. Transfer approvers are notified.",
   "Motivo da diferença": "Reason for the difference",
   "Ex.: caixas danificadas no transporte": "E.g. boxes damaged in transit",
+  "Já havia uma execução em curso noutro processo; esta foi ignorada.": "Another run was already in progress in a different process; this one was skipped.",
+  "Execuções das tarefas": "Job runs",
+  "Sem execução bem-sucedida recente: verifique se o worker está a correr.": "No recent successful run: check that the worker is running.",
+  "Erro": "Error",
+  "Ainda sem execuções registadas.": "No runs recorded yet.",
 };
