@@ -42,3 +42,18 @@ O teste de restauro verifica as checksums, restaura o backup numa base temporár
 auditoria de todas as empresas, confirma que não há registos órfãos (isolamento preservado), regista as
 contagens por empresa e grava `last-restore-test.json`. Restaurar dados de uma só empresa implica
 filtrar por `tenant_id` a partir da cópia restaurada; é um procedimento manual e auditado.
+
+## Rotação da chave de encriptação (`ENCRYPTION_KEY`)
+A chave protege os segredos de 2FA em repouso (AES-256-GCM) e, sem `BACKUP_ENCRYPTION_KEY`, os backups. Cada valor
+guarda o identificador da chave (8 hex do SHA-256, nunca a chave), por isso a rotação faz-se sem interrupção:
+
+1. Gerar a nova chave no secret manager: `openssl rand -hex 32`.
+2. Publicar com `ENCRYPTION_KEY=<nova>` e `ENCRYPTION_KEYS_PREVIOUS=<antiga>` (a aplicação lê as duas e encripta com a nova).
+3. Correr `pnpm --filter api keys:rotate`: re-encripta os segredos com a nova chave (idempotente; não sobrepõe valores alterados entretanto) e regista `security.keys_rotated` na auditoria.
+4. Confirmar com `pnpm --filter api keys:rotate --check` (sai com código 2 se ainda houver pendentes).
+5. Retirar a antiga de `ENCRYPTION_KEYS_PREVIOUS` só quando já não for precisa para restaurar backups antigos
+   (os backups são lidos com qualquer chave do porta-chaves). Guardá-la no secret manager até esses backups expirarem.
+
+Em caso de suspeita de fuga da chave: rodar de imediato e, além disso, pedir aos utilizadores que reconfigurem o 2FA
+(os segredos antigos podiam ter sido lidos com a chave comprometida).
+

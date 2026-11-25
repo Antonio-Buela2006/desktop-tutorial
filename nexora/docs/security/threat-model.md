@@ -23,6 +23,6 @@ faturação, configuração comercial, registos de auditoria, capacidade de aç�
 ## Riscos residuais / a tratar antes de produção
 - RLS no PostgreSQL ativo (ADR-0003, `rls.test.ts`). Risco residual: rotas de identidade (`/api/auth/*`), portal Nexora, webhooks e jobs correm sem RLS e dependem só dos filtros da aplicação; tabelas globais (utilizadores, planos) não têm RLS.
 - WAF, deteção de anomalias e alertas de segurança centralizados (hoje: rate limit + bloqueio + alertas de dispositivo).
-- Rotação de `ENCRYPTION_KEY` (re-encriptação de segredos TOTP) e gestão via secret manager.
+- Rotação de `ENCRYPTION_KEY` implementada (porta-chaves com identificação da chave, `pnpm keys:rotate`, `keys.test.ts`); falta a gestão via secret manager da infraestrutura escolhida.
 - Pentest externo e revisão de dependências (SCA) no CI.
 - SSRF: a plataforma não faz pedidos a URLs fornecidas por utilizadores; manter esta regra ao integrar novos conectores.

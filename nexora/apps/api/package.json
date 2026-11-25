@@ -15,7 +15,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:reset": "tsx src/db/reset.ts && tsx src/db/migrate.ts && tsx src/db/seed.ts",
     "backup": "tsx src/ops/backup.ts backup",
-    "backup:verify": "tsx src/ops/backup.ts verify"
+    "backup:verify": "tsx src/ops/backup.ts verify",
+    "keys:rotate": "tsx src/ops/rotate-keys.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",

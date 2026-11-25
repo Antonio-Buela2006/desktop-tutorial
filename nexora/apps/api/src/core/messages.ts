@@ -144,6 +144,7 @@ const M: Record<string, Record<Locale, string>> = {
   "audit.role.updated": { pt: "Função alterada", en: "Role updated" },
   "audit.sale.canceled": { pt: "Venda anulada", en: "Sale canceled" },
   "audit.sale.created": { pt: "Venda registada", en: "Sale recorded" },
+  "audit.security.keys_rotated": { pt: "Chave de encriptação rodada", en: "Encryption key rotated" },
   "audit.security.ip_blocked": { pt: "IP bloqueado", en: "IP blocked" },
   "audit.settings.updated": { pt: "Definições da empresa alteradas", en: "Company settings updated" },
   "audit.subscription.activated": { pt: "Subscrição ativada", en: "Subscription activated" },

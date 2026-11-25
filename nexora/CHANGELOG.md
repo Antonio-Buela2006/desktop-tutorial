@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.17.0 — 2026-11-25
+- Rotação da chave de encriptação em repouso sem interrupção:
+  - porta-chaves com a chave atual (`ENCRYPTION_KEY`) e as anteriores (`ENCRYPTION_KEYS_PREVIOUS`, só leitura);
+  - cada valor encriptado identifica a chave usada (sem a revelar); os valores no formato antigo continuam legíveis;
+  - `pnpm keys:rotate` re-encripta os segredos de 2FA (utilizadores e portal Nexora) com a chave atual; é idempotente, não sobrepõe valores alterados entretanto e fica auditado; `--check` só verifica;
+  - os backups continuam restauráveis depois de uma rotação, porque são lidos com qualquer chave do porta-chaves.
+- Procedimento de rotação documentado em `docs/architecture/deployment.md`.
+- 112 testes.
+
 ## 0.16.0 — 2026-11-25
 - Ordenação por coluna nas tabelas de produtos (SKU, nome, preço, stock, reposição), vendas (número, data, cliente, total), finanças (data, tipo, categoria, valor) e funcionários (nome, função, departamento e, só para quem o pode ver, salário), além dos clientes.
 - No servidor, só ordenam colunas de uma lista permitida por tabela; outras são ignoradas (ordem por omissão), com desempate estável entre páginas.

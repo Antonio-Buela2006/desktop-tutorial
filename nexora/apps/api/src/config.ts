@@ -25,6 +25,8 @@ export const config = {
     ? required("TEST_DATABASE_URL", "postgres://postgres:postgres@localhost:5432/nexora_test")
     : required("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/nexora"),
   encryptionKey: required("ENCRYPTION_KEY", isTest ? "1".repeat(64) : undefined),
+  /** Chaves anteriores (64 hex, separadas por vírgulas), só para ler dados encriptados antes da rotação. */
+  previousEncryptionKeys: (process.env.ENCRYPTION_KEYS_PREVIOUS ?? "").split(",").map((k) => k.trim()).filter(Boolean),
   paymentWebhookSecret: required("PAYMENT_WEBHOOK_SECRET", isTest ? "test-webhook-secret" : undefined),
   aiProvider: process.env.AI_PROVIDER ?? "local",
   anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5",

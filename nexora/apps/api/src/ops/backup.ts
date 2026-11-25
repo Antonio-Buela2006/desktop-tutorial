@@ -9,6 +9,7 @@
  * PG_BIN (pasta com pg_dump/pg_restore, se não estiverem no PATH).
  * Para cópias redundantes, sincronize BACKUP_DIR para object storage noutra região (ex.: aws s3 sync / rclone).
  */
+import { allKeys } from "../core/crypto.js";
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import { promises as fs, createReadStream } from "node:fs";
@@ -20,7 +21,11 @@ import { verifyChainRows } from "../core/audit.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BACKUP_DIR = path.resolve(process.env.BACKUP_DIR ?? path.resolve(here, "../../../../.data/backups"));
-const KEY = Buffer.from(process.env.BACKUP_ENCRYPTION_KEY ?? config.encryptionKey, "hex");
+// Com BACKUP_ENCRYPTION_KEY usa só essa; caso contrário, encripta com a chave atual e lê com qualquer
+// chave do porta-chaves (as cópias feitas antes de uma rotação continuam restauráveis).
+const KEY = process.env.BACKUP_ENCRYPTION_KEY ? Buffer.from(process.env.BACKUP_ENCRYPTION_KEY, "hex") : null;
+const encryptKey = () => KEY ?? allKeys()[0].key;
+const decryptKeys = () => (KEY ? [KEY] : allKeys().map((k) => k.key));
 const KEEP = Number(process.env.BACKUP_KEEP ?? 14);
 const bin = (n: string) => (process.env.PG_BIN ? path.join(process.env.PG_BIN, n) : n);
 
@@ -46,7 +51,7 @@ export async function createBackup(dbUrl = config.databaseUrl) {
   await fs.mkdir(BACKUP_DIR, { recursive: true, mode: 0o700 });
   const dump = await run(bin("pg_dump"), ["--format=custom", "--no-owner", "--no-privileges", dbUrl]);
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", KEY, iv);
+  const cipher = crypto.createCipheriv("aes-256-gcm", encryptKey(), iv);
   const enc = Buffer.concat([cipher.update(dump), cipher.final()]);
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const file = path.join(BACKUP_DIR, `nexora-${stamp}.dump.enc`);
@@ -66,9 +71,16 @@ export async function createBackup(dbUrl = config.databaseUrl) {
 async function decryptBackup(file: string): Promise<Buffer> {
   const buf = await fs.readFile(file);
   if (buf.subarray(0, 4).toString() !== "NXB1") throw new Error("Formato de backup desconhecido.");
-  const decipher = crypto.createDecipheriv("aes-256-gcm", KEY, buf.subarray(4, 16));
-  decipher.setAuthTag(buf.subarray(16, 32));
-  return Buffer.concat([decipher.update(buf.subarray(32)), decipher.final()]);
+  for (const key of decryptKeys()) {
+    try {
+      const decipher = crypto.createDecipheriv("aes-256-gcm", key, buf.subarray(4, 16));
+      decipher.setAuthTag(buf.subarray(16, 32));
+      return Buffer.concat([decipher.update(buf.subarray(32)), decipher.final()]);
+    } catch {
+      /* chave seguinte */
+    }
+  }
+  throw new Error("Não foi possível desencriptar o backup com nenhuma chave conhecida.");
 }
 
 const COUNTED = ["tenants", "users", "memberships", "invoices", "payments", "employees", "customers", "products", "sales_orders", "finance_transactions", "audit_events"];
