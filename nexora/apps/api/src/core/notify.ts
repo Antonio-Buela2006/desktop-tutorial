@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, type DbOrTx } from "../db/client.js";
-import { memberships, notificationPreferences, notifications, users } from "../db/schema.js";
+import { membershipRoles, memberships, notificationPreferences, notifications, roles, users } from "../db/schema.js";
 import nodemailer from "nodemailer";
 import { config } from "../config.js";
 import { asLocale, isMsg, m, render, type Msg } from "./messages.js";
@@ -30,7 +30,7 @@ export async function sendMail(to: string, subject: string, body: string) {
 type NotifyInput = { type: string; title: string | Msg; body?: string | Msg; severity?: "info" | "warning" | "critical"; link?: string; dedupeKey?: string };
 
 /** Tipos que nunca podem ser silenciados (segurança da conta e estado da subscrição). */
-export const UNMUTABLE_PREFIXES = ["security.", "billing.", "trial.", "ownership.", "incident."];
+export const UNMUTABLE_PREFIXES = ["security.", "billing.", "trial.", "ownership.", "incident.", "ai.alert.escalated"];
 const unmutable = (type: string) => UNMUTABLE_PREFIXES.some((p) => type.startsWith(p));
 
 export type Prefs = typeof notificationPreferences.$inferSelect;
@@ -76,7 +76,14 @@ export async function notifyMembership(tenantId: string, membershipId: string, n
  * E-mail: só para notificações novas (sem duplicados), se o utilizador o tiver ativo e fora do horário
  * de silêncio — exceto severidade crítica.
  */
-export async function notifyByPermission(tenantId: string, perm: string, n: NotifyInput, opts: { email?: boolean } = {}) {
+export async function notifyByPermission(tenantId: string, perm: string, n: NotifyInput, opts: { email?: boolean; roleCodes?: string[] } = {}) {
+  // Restrição opcional a funções (destinatários configurados nos alertas); a permissão continua obrigatória.
+  const allowed = opts.roleCodes?.length
+    ? new Set(
+        (await db.select({ id: membershipRoles.membershipId }).from(membershipRoles).innerJoin(roles, eq(roles.id, membershipRoles.roleId))
+          .where(and(eq(membershipRoles.tenantId, tenantId), inArray(roles.code, opts.roleCodes)))).map((r) => r.id),
+      )
+    : null;
   const rows = await db
     .select({ m: memberships, email: users.email, locale: users.locale })
     .from(memberships)
@@ -87,6 +94,7 @@ export async function notifyByPermission(tenantId: string, perm: string, n: Noti
   for (const r of rows) {
     const perms = await effectivePermissions(r.m, modules);
     if (!perms.has(perm)) continue;
+    if (allowed && !allowed.has(r.m.id)) continue;
     const created = await notifyMembership(tenantId, r.m.id, n);
     if (!created) continue;
     sent++;

@@ -28,6 +28,7 @@ const M: Record<string, Record<Locale, string>> = {
   "ai.approval.title": { pt: "Ação da IA aguarda aprovação", en: "AI action awaits approval" },
   "ai.alert.low_stock.title": { pt: "{count} produto(s) com stock baixo", en: "{count} product(s) low on stock" },
   "ai.alert.out_of_stock.title": { pt: "{count} produto(s) com stock baixo (há ruturas)", en: "{count} product(s) low on stock (some out of stock)" },
+  "ai.alert.escalated.title": { pt: "Alerta sem leitura há mais de {hours} h", en: "Alert unread for more than {hours} h" },
   "ai.alert.expense.title": { pt: "Despesa invulgarmente elevada", en: "Unusually high expense" },
   "ai.alert.expense.body": {
     pt: "{category}: {amount} (mais de {multiplier}× a média recente de {avg}).",

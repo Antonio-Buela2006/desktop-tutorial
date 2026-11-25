@@ -424,6 +424,7 @@ function AlertsCard() {
   const { data } = useApi<any>(["alerts-cfg"], "/api/company/alerts");
   const [f, setF] = useState<any>(null);
   const save = useAction((v: any) => put("/api/company/alerts", v), [["alerts-cfg"]]);
+  const roleList = useApi<any[]>(["roles"], "/api/company/roles");
   useEffect(() => { if (data && !f) setF(data); }, [data, f]);
   if (!f) return null;
   return (
@@ -435,7 +436,17 @@ function AlertsCard() {
         <label className="flex flex-wrap items-center gap-2"><input type="checkbox" checked={f.abnormalExpense} onChange={(e) => setF({ ...f, abnormalExpense: e.target.checked })} /><T>Despesa acima de</T> <Input type="number" min={1.5} max={20} step={0.5} className="w-20" value={f.abnormalExpenseMultiplier} onChange={(e) => setF({ ...f, abnormalExpenseMultiplier: +e.target.value })} aria-label="Multiplicador" /> <T>× a média recente</T></label>
         <label className="flex flex-wrap items-center gap-2"><input type="checkbox" checked={f.salesDrop} onChange={(e) => setF({ ...f, salesDrop: e.target.checked })} /><T>Queda de vendas projetada de pelo menos</T> <Input type="number" min={5} max={90} className="w-20" value={f.salesDropPct} onChange={(e) => setF({ ...f, salesDropPct: +e.target.value })} aria-label="Percentagem" /> %</label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={f.emailCritical} onChange={(e) => setF({ ...f, emailCritical: e.target.checked })} /><T>Enviar alertas críticos também por e-mail</T></label>
-        <p className="text-xs muted"><T>Os destinatários são as pessoas com permissão sobre a área. Cada alerta é enviado no máximo uma vez por dia, e cada pessoa pode silenciá-los nas suas notificações.</T></p>
+        <label className="flex flex-wrap items-center gap-2"><T>Escalar para os administradores se ninguém ler em</T> <Input type="number" min={0} max={168} className="w-20" value={f.escalateAfterHours ?? 24} onChange={(e) => setF({ ...f, escalateAfterHours: Math.max(0, Math.min(168, Math.floor(+e.target.value || 0))) })} aria-label="Horas até escalar" /> <T>horas (0 = não escalar)</T></label>
+        <fieldset className="rounded-lg border border-slate-200 p-2 dark:border-slate-700">
+          <legend className="px-1 text-xs font-medium"><T>Destinatários</T></legend>
+          <p className="mb-1 text-xs muted"><T>Sem nenhuma função escolhida, recebem todas as pessoas com permissão sobre a área. Escolhendo funções, só essas recebem (e continuam a precisar da permissão).</T></p>
+          <div className="grid gap-1 sm:grid-cols-2">
+            {roleList.data?.map((r) => (
+              <label key={r.id} className="flex items-center gap-2"><input type="checkbox" checked={(f.recipientRoles ?? []).includes(r.code)} onChange={(e) => setF({ ...f, recipientRoles: e.target.checked ? [...(f.recipientRoles ?? []), r.code] : (f.recipientRoles ?? []).filter((c: string) => c !== r.code) })} /><T>{r.name}</T></label>
+            ))}
+          </div>
+        </fieldset>
+        <p className="text-xs muted"><T>Cada alerta é enviado no máximo uma vez por dia e cada pessoa pode silenciá-lo nas suas notificações; o escalonamento aos administradores não pode ser silenciado.</T></p>
         <Button size="sm" loading={save.isPending} onClick={() => save.mutate(f)}><T>Guardar alertas</T></Button>
       </div>
     </Card>

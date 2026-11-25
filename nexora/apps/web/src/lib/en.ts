@@ -403,4 +403,10 @@ export const EN: Record<string, string> = {
   "por ler": "unread",
   "Utilizador de destino": "Target user",
   "Duração em horas": "Duration in hours",
+  "Escalar para os administradores se ninguém ler em": "Escalate to administrators if nobody reads it within",
+  "horas (0 = não escalar)": "hours (0 = do not escalate)",
+  "Horas até escalar": "Hours until escalation",
+  "Destinatários": "Recipients",
+  "Sem nenhuma função escolhida, recebem todas as pessoas com permissão sobre a área. Escolhendo funções, só essas recebem (e continuam a precisar da permissão).": "With no role selected, everyone with permission over the area receives alerts. If you choose roles, only those receive them (and they still need the permission).",
+  "Cada alerta é enviado no máximo uma vez por dia e cada pessoa pode silenciá-lo nas suas notificações; o escalonamento aos administradores não pode ser silenciado.": "Each alert is sent at most once a day and each person can mute it in their notifications; escalation to administrators cannot be muted.",
 };

@@ -15,6 +15,7 @@ import {
   notificationPreferences,
   tenants,
   type AlertSettings,
+  roles,
 } from "../db/schema.js";
 import { audit } from "../core/audit.js";
 import { auditBase, authorize, can, requireCtx } from "../core/context.js";
@@ -29,6 +30,8 @@ export const DEFAULT_ALERTS: AlertSettings = {
   salesDrop: true,
   salesDropPct: 30,
   emailCritical: true,
+  escalateAfterHours: 24,
+  recipientRoles: [],
 };
 
 /** Tipos de notificação que o utilizador pode silenciar (os restantes são obrigatórios). */
@@ -121,9 +124,16 @@ export async function companyExtrasRoutes(app: FastifyInstance) {
         salesDrop: z.boolean(),
         salesDropPct: z.number().int().min(5).max(90),
         emailCritical: z.boolean(),
+        escalateAfterHours: z.number().int().min(0).max(168).default(24),
+        recipientRoles: z.array(z.string().max(60)).max(30).default([]),
       }),
       req.body,
     );
+    if (body.recipientRoles.length) {
+      const known = await db.select({ code: roles.code }).from(roles).where(eq(roles.tenantId, ctx.tenant.id));
+      const unknown = body.recipientRoles.filter((c) => !known.some((k) => k.code === c));
+      if (unknown.length) throw badRequest("Função desconhecida nos destinatários.", { unknown });
+    }
     await db.update(tenants).set({ settings: { ...ctx.tenant.settings, alerts: body } }).where(eq(tenants.id, ctx.tenant.id));
     await audit({ ...auditBase(ctx), action: "alerts.updated", entityType: "tenant", entityId: ctx.tenant.id, summary: "Configuração de alertas atualizada.", metadata: { before: ctx.tenant.settings.alerts ?? DEFAULT_ALERTS, after: body } });
     return { ok: true };

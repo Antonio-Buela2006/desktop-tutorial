@@ -114,6 +114,10 @@ export type AlertSettings = {
   salesDrop: boolean;
   salesDropPct: number; // queda do mês vs média dos 3 anteriores (projeção)
   emailCritical: boolean; // enviar também por e-mail os alertas críticos
+  /** Horas sem leitura até o alerta subir aos administradores (0 = sem escalonamento). */
+  escalateAfterHours?: number;
+  /** Códigos das funções que recebem os alertas (vazio = todas as pessoas com permissão sobre a área). */
+  recipientRoles?: string[];
 };
 
 export type TenantSettings = {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20.0 — 2026-11-25
+- Alertas inteligentes (spec 9.5):
+  - escalonamento: um alerta importante (aviso ou crítico) que ninguém leu ao fim de N horas (24 por omissão, 0 desliga) sobe aos administradores, também por e-mail, uma só vez por alerta; não pode ser silenciado;
+  - destinatários: os alertas podem ser restringidos a funções escolhidas; sem escolha, mantém-se "todas as pessoas com permissão sobre a área"; a permissão continua obrigatória e funções desconhecidas são recusadas;
+  - os dois campos estão nas Definições → Alertas inteligentes, em PT/EN.
+- 119 testes.
+
 ## 0.19.0 — 2026-11-25
 - Acessibilidade (spec 11.2, objetivo WCAG 2.2 AA) verificada com axe-core em 50 páginas: site público, aplicação em tema claro e escuro, e portal Nexora. Passou de 57 violações graves para 0:
   - contraste insuficiente: títulos de secção do menu, texto secundário sobre fundos cinzentos, e verde, laranja e vermelho em texto pequeno (claro e escuro);
