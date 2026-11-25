@@ -221,14 +221,14 @@ export function Products() {
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`border-b-2 px-3 py-2 text-sm ${tab === k ? "border-brand-600 font-medium text-brand-700 dark:text-brand-100" : "border-transparent muted"}`}><T>{l}</T></button>
         ))}
       </div>
-      {tab === "transfers" ? <TransferOrders /> : <DataTable
+      {tab === "transfers" ? <TransferOrders /> : <DataTable sort={list.sort} onSort={list.onSort}
         rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
         toolbar={<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> <T>Só stock baixo</T></label>}
         columns={[
-          { key: "sku", header: "SKU" },
-          { key: "name", header: "Produto", render: (r: any) => <span className="font-medium">{r.name}</span> },
-          { key: "unitPrice", header: "Preço", render: (r: any) => fmtMoney(r.unitPrice, cur) },
-          { key: "stockQty", header: "Stock", render: (r: any) => (
+          { key: "sku", header: "SKU", sortable: true },
+          { key: "name", header: "Produto", sortable: true, render: (r: any) => <span className="font-medium">{r.name}</span> },
+          { key: "unitPrice", header: "Preço", sortable: true, render: (r: any) => fmtMoney(r.unitPrice, cur) },
+          { key: "stockQty", header: "Stock", sortable: true, render: (r: any) => (
             <div>
               <Badge tone={r.stockQty <= r.reorderLevel ? "red" : "green"}>{fmtNum(r.stockQty)}</Badge>
               {(r.levels?.length > 0 || branches.length > 0) && (
@@ -245,7 +245,7 @@ export function Products() {
               )}
             </div>
           ) },
-          { key: "reorderLevel", header: "Repor a", render: (r: any) => fmtNum(r.reorderLevel) },
+          { key: "reorderLevel", header: "Repor a", sortable: true, render: (r: any) => fmtNum(r.reorderLevel) },
           {
             key: "a", header: "", className: "text-right", render: (r: any) => (
               <div className="flex justify-end gap-1">
@@ -372,15 +372,15 @@ export function Sales() {
   return (
     <>
       <PageHeader title="Vendas" subtitle="Cada venda dá baixa de stock automaticamente, numa única transação." actions={can(me, "sales.create") && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> <T>Nova venda</T></Button>} />
-      <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
+      <DataTable sort={list.sort} onSort={list.onSort} rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
         toolbar={<BranchSelect value={branch} onChange={setBranch} />}
         columns={[
           ...(branches.length ? [{ key: "branch", header: "Unidade", render: (r: any) => branches.find((b) => b.id === r.branchId)?.name ?? "—" }] : []),
-          { key: "number", header: "N.º", render: (r: any) => <span className="font-mono text-xs">{r.number}</span> },
-          { key: "soldAt", header: "Data", render: (r: any) => fmtDate(r.soldAt) },
-          { key: "customer", header: "Cliente", render: (r: any) => r.customer ?? "Consumidor final" },
+          { key: "number", header: "N.º", sortable: true, render: (r: any) => <span className="font-mono text-xs">{r.number}</span> },
+          { key: "soldAt", header: "Data", sortable: true, render: (r: any) => fmtDate(r.soldAt) },
+          { key: "customer", header: "Cliente", sortable: true, render: (r: any) => r.customer ?? "Consumidor final" },
           { key: "lines", header: "Itens", render: (r: any) => r.lines.map((l: any) => `${l.quantity}× ${l.name}`).join(", ") },
-          { key: "total", header: "Total", render: (r: any) => <strong>{fmtMoney(r.total, cur)}</strong> },
+          { key: "total", header: "Total", sortable: true, render: (r: any) => <strong>{fmtMoney(r.total, cur)}</strong> },
           { key: "status", header: "Estado", render: (r: any) => <Badge tone={r.status === "confirmed" ? "green" : "gray"}>{r.status === "confirmed" ? "Confirmada" : "Anulada"}</Badge> },
           { key: "a", header: "", className: "text-right", render: (r: any) => r.status === "confirmed" && can(me, "sales.cancel") && <Button size="sm" variant="ghost" disabled={!w} aria-label={`Anular ${r.number}`} onClick={async () => { if (await confirm("Anular venda", `A venda ${r.number} será anulada e o stock reposto.`)) { await cancel.mutateAsync(r.id); toast("Venda anulada."); } }}><Ban className="h-4 w-4" /></Button> },
         ]} />
@@ -471,14 +471,14 @@ export function Finance() {
       <PageHeader title="Finanças" subtitle={`Receitas e despesas. Despesas a partir de ${fmtMoney(list.data?.approvalThreshold ?? 500000, cur)} exigem aprovação de outra pessoa.`} actions={can(me, "finance.create") && <Button disabled={!w} onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> <T>Novo movimento</T></Button>} />
       {decide.error && <div className="mb-3"><ErrorText error={decide.error} /></div>}
       <CashflowForecast currency={cur} />
-      <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
+      <DataTable sort={list.sort} onSort={list.onSort} rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
         toolbar={<><BranchSelect value={branch} onChange={setBranch} /><Select aria-label="Filtrar estado" value={status} onChange={(e) => setStatus(e.target.value)} className="w-48"><option value="">Todos os estados</option><option value="pending_approval">Por aprovar</option><option value="approved">Aprovados</option><option value="rejected">Rejeitados</option></Select></>}
         columns={[
-          { key: "occurredOn", header: "Data", render: (r: any) => fmtDate(r.occurredOn) },
-          { key: "kind", header: "Tipo", render: (r: any) => <Badge tone={r.kind === "income" ? "green" : "amber"}>{r.kind === "income" ? "Receita" : "Despesa"}</Badge> },
-          { key: "category", header: "Categoria" },
+          { key: "occurredOn", header: "Data", sortable: true, render: (r: any) => fmtDate(r.occurredOn) },
+          { key: "kind", header: "Tipo", sortable: true, render: (r: any) => <Badge tone={r.kind === "income" ? "green" : "amber"}>{r.kind === "income" ? "Receita" : "Despesa"}</Badge> },
+          { key: "category", header: "Categoria", sortable: true },
           { key: "description", header: "Descrição", render: (r: any) => r.description || "—" },
-          { key: "amount", header: "Valor", render: (r: any) => <strong>{fmtMoney(r.amount, cur)}</strong> },
+          { key: "amount", header: "Valor", sortable: true, render: (r: any) => <strong>{fmtMoney(r.amount, cur)}</strong> },
           { key: "status", header: "Estado", render: (r: any) => <Badge tone={r.status === "approved" ? "green" : r.status === "rejected" ? "red" : "amber"}>{{ approved: "Aprovado", rejected: "Rejeitado", pending_approval: "Por aprovar" }[r.status as string]}</Badge> },
           {
             key: "a", header: "", className: "text-right", render: (r: any) => r.status === "pending_approval" && can(me, "finance.approve") && (

@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { asc, desc, type AnyColumn, type SQL } from "drizzle-orm";
 import { badRequest } from "./errors.js";
 import { config } from "../config.js";
 
@@ -46,4 +47,15 @@ export function toCsv(rows: Record<string, unknown>[]): string {
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
+}
+
+/**
+ * Ordenação de listas a partir de `sort`/`dir`, só por colunas da lista permitida (nunca por nome
+ * de coluna vindo do cliente). Coluna desconhecida ou ausente → ordem por omissão da lista.
+ * `tieBreak` garante ordem estável entre páginas quando há valores repetidos.
+ */
+export function orderFor(q: { sort?: string; dir: "asc" | "desc" }, allowed: Record<string, AnyColumn | SQL>, fallback: SQL[], tieBreak: AnyColumn) {
+  const col = q.sort && Object.prototype.hasOwnProperty.call(allowed, q.sort) ? allowed[q.sort] : undefined;
+  if (!col) return fallback;
+  return [q.dir === "asc" ? asc(col) : desc(col), asc(tieBreak)];
 }

@@ -1,6 +1,6 @@
 /** Painel da empresa: utilizadores, funções/permissões, funcionários, definições e titularidade. */
 import type { FastifyInstance } from "fastify";
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql as dsql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql as dsql, type AnyColumn } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
 import {
@@ -19,7 +19,7 @@ import { audit } from "../core/audit.js";
 import { auditBase, authorize, branchCondition, can, requireCtx, resolveBranchForWrite, type Ctx } from "../core/context.js";
 import { randomToken, sha256, verifyPassword } from "../core/crypto.js";
 import { AppError, badRequest, forbidden, notFound } from "../core/errors.js";
-import { pageQuery, parse, uuidParam } from "../core/http.js";
+import { pageQuery, parse, uuidParam, orderFor } from "../core/http.js";
 import { ADMIN_ONLY, PERMISSIONS, PERMISSION_KEYS, permissionLabel } from "../core/permissions.js";
 import { assertCapacity, limitsOf, usageOf } from "../core/tenantService.js";
 import { notifyMembership, sendMail } from "../core/notify.js";
@@ -287,7 +287,9 @@ export async function companyRoutes(app: FastifyInstance) {
       q.status === "all" ? undefined : eq(employees.status, q.status),
       q.q ? or(ilike(employees.fullName, `%${q.q}%`), ilike(employees.department, `%${q.q}%`), ilike(employees.jobTitle, `%${q.q}%`)) : undefined,
     );
-    const rows = await db.select().from(employees).where(where).orderBy(asc(employees.fullName)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
+    // O salário só é ordenável por quem o pode ver (a ordem revelaria quem ganha mais).
+    const sortable: Record<string, AnyColumn> = { fullName: employees.fullName, jobTitle: employees.jobTitle, department: employees.department, ...(can(ctx, "employees.view_salary") ? { salary: employees.salary } : {}) };
+    const rows = await db.select().from(employees).where(where).orderBy(...orderFor(q, sortable, [asc(employees.fullName)], employees.id)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
     const [{ n }] = await db.select({ n: count() }).from(employees).where(where);
     const showSalary = can(ctx, "employees.view_salary");
     const accounts = await db.select({ employeeId: memberships.employeeId, status: memberships.status, id: memberships.id }).from(memberships).where(eq(memberships.tenantId, ctx.tenant.id));

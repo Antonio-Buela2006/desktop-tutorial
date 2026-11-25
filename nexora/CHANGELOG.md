@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.0 — 2026-11-25
+- Ordenação por coluna nas tabelas de produtos (SKU, nome, preço, stock, reposição), vendas (número, data, cliente, total), finanças (data, tipo, categoria, valor) e funcionários (nome, função, departamento e, só para quem o pode ver, salário), além dos clientes.
+- No servidor, só ordenam colunas de uma lista permitida por tabela; outras são ignoradas (ordem por omissão), com desempate estável entre páginas.
+- O salário não é ordenável por quem não tem permissão para o ver, porque a ordem revelaria quem ganha mais.
+- 110 testes.
+
 ## 0.15.0 — 2026-11-25
 - Rastreio distribuído com OpenTelemetry, desligado por omissão e ligado por `OTEL_EXPORTER_OTLP_ENDPOINT` (qualquer coletor OTLP/HTTP; `OTEL_TRACES_EXPORTER=console` para depurar):
   - spans por pedido, hooks e handler (`@fastify/otel` + instrumentação HTTP), propagação W3C `traceparent`;

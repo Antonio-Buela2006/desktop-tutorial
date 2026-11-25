@@ -47,17 +47,17 @@ export function Employees() {
     <>
       <PageHeader title="Funcionários" subtitle="Cadastro de pessoas da empresa — independente das contas de acesso." actions={can(me, "employees.create") && <Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> <T>Registar funcionário</T></Button>} />
       <Capacity limits={list.data?.limits} usage={list.data?.usage} />
-      <DataTable rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
+      <DataTable sort={list.sort} onSort={list.onSort} rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
         toolbar={<>
           {!!branches.data?.length && <Select aria-label="Unidade" value={branch} onChange={(e) => setBranch(e.target.value)} className="w-44"><option value="">Todas as unidades</option>{branches.data.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>}
           <Select aria-label="Estado" value={status} onChange={(e) => setStatus(e.target.value)} className="w-40"><option value="active">Ativos</option><option value="exited">Saídas</option><option value="all">Todos</option></Select>
         </>}
         columns={[
-          { key: "fullName", header: "Nome", render: (r: any) => <span className="font-medium">{r.fullName}</span> },
-          { key: "jobTitle", header: "Função", render: (r: any) => r.jobTitle ?? "—" },
-          { key: "department", header: "Departamento", render: (r: any) => r.department ?? "—" },
+          { key: "fullName", header: "Nome", sortable: true, render: (r: any) => <span className="font-medium">{r.fullName}</span> },
+          { key: "jobTitle", header: "Função", sortable: true, render: (r: any) => r.jobTitle ?? "—" },
+          { key: "department", header: "Departamento", sortable: true, render: (r: any) => r.department ?? "—" },
           ...(branches.data?.length ? [{ key: "branch", header: "Unidade", render: (r: any) => branches.data!.find((b) => b.id === r.branchId)?.name ?? "—" }] : []),
-          ...(salary ? [{ key: "salary", header: "Salário", render: (r: any) => fmtMoney(r.salary, me.tenant.currency) }] : []),
+          ...(salary ? [{ key: "salary", header: "Salário", sortable: true, render: (r: any) => fmtMoney(r.salary, me.tenant.currency) }] : []),
           { key: "account", header: "Conta", render: (r: any) => (r.account ? <Badge tone={r.account.status === "active" ? "green" : "gray"}>{r.account.status === "active" ? "Com acesso" : "Desativada"}</Badge> : <Badge><T>Sem conta</T></Badge>) },
           { key: "status", header: "Estado", render: (r: any) => (r.status === "active" ? <Badge tone="green"><T>Ativo</T></Badge> : <Badge>Saída {fmtDate(r.exitDate)}</Badge>) },
           {

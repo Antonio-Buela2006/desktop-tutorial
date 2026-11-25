@@ -14,7 +14,7 @@ import { inTransitByProduct } from "./transfers.routes.js";
 import { audit } from "../core/audit.js";
 import { auditBase, authorize, branchCondition, can, requireCtx, resolveBranchForWrite, type Ctx } from "../core/context.js";
 import { AppError, badRequest, forbidden, notFound } from "../core/errors.js";
-import { pageQuery, parse, uuidParam } from "../core/http.js";
+import { pageQuery, parse, uuidParam, orderFor } from "../core/http.js";
 import { notifyByPermission } from "../core/notify.js";
 import { m, render, asLocale } from "../core/messages.js";
 
@@ -199,7 +199,8 @@ export async function businessRoutes(app: FastifyInstance) {
       q.q ? or(ilike(products.name, `%${q.q}%`), ilike(products.sku, `%${q.q}%`)) : undefined,
       q.lowStock ? lte(products.stockQty, products.reorderLevel) : undefined,
     );
-    const items = await db.select().from(products).where(where).orderBy(asc(products.name)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
+    const order = orderFor(q, { sku: products.sku, name: products.name, unitPrice: products.unitPrice, stockQty: products.stockQty, reorderLevel: products.reorderLevel }, [asc(products.name)], products.id);
+    const items = await db.select().from(products).where(where).orderBy(...order).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
     const [{ n }] = await db.select({ n: count() }).from(products).where(where);
     const transit = await inTransitByProduct(ctx.tenant.id);
     const levels = items.length ? await db.select().from(stockLevels).where(and(eq(stockLevels.tenantId, ctx.tenant.id), inArray(stockLevels.productId, items.map((i) => i.id)))) : [];
@@ -300,7 +301,7 @@ export async function businessRoutes(app: FastifyInstance) {
     const q = parse(pageQuery.extend({ branchId: z.string().uuid().optional() }), req.query);
     const where = and(eq(salesOrders.tenantId, ctx.tenant.id), isNull(salesOrders.deletedAt), branchCondition(ctx, salesOrders.branchId, q.branchId), q.q ? ilike(salesOrders.number, `%${q.q}%`) : undefined);
     const items = await db.select({ o: salesOrders, customer: customers.name }).from(salesOrders).leftJoin(customers, eq(customers.id, salesOrders.customerId))
-      .where(where).orderBy(desc(salesOrders.soldAt)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
+      .where(where).orderBy(...orderFor(q, { number: salesOrders.number, soldAt: salesOrders.soldAt, total: salesOrders.total, customer: customers.name }, [desc(salesOrders.soldAt)], salesOrders.id)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
     const [{ n }] = await db.select({ n: count() }).from(salesOrders).where(where);
     return { items: items.map((i) => ({ ...i.o, customer: i.customer })), total: n };
   });
@@ -375,7 +376,8 @@ export async function businessRoutes(app: FastifyInstance) {
       q.status ? eq(financeTransactions.status, q.status) : undefined,
       q.q ? or(ilike(financeTransactions.category, `%${q.q}%`), ilike(financeTransactions.description, `%${q.q}%`)) : undefined,
     );
-    const items = await db.select().from(financeTransactions).where(where).orderBy(desc(financeTransactions.occurredOn), desc(financeTransactions.createdAt)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
+    const order = orderFor(q, { occurredOn: financeTransactions.occurredOn, amount: financeTransactions.amount, category: financeTransactions.category, kind: financeTransactions.kind }, [desc(financeTransactions.occurredOn), desc(financeTransactions.createdAt)], financeTransactions.id);
+    const items = await db.select().from(financeTransactions).where(where).orderBy(...order).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
     const [{ n }] = await db.select({ n: count() }).from(financeTransactions).where(where);
     return { items, total: n, approvalThreshold: EXPENSE_APPROVAL_THRESHOLD };
   });
