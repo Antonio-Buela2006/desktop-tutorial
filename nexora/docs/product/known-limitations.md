@@ -12,7 +12,7 @@ Transparência exigida pela especificação (§17, §20). Lista honesta do estad
 7. **Filas**: jobs em processo/worker sem Redis/BullMQ (ADR-0004).
 8. **Ficheiros/documentos**: documentos de funcionários e clientes com armazenamento local ou S3. Antivírus ClamAV suportado (`CLAMAV_HOST`), com falha fechada; é preciso disponibilizar o serviço clamd na infraestrutura.
 9. **IA**: previsões de vendas e de tesouraria por regressão linear simples e de rutura de stock pelo consumo médio dos últimos 90 dias (com intervalos, pressupostos e limitações explícitos); simulação de preços e custos; aprendizagem
-   contextual limita-se a usar o histórico da própria empresa; sem modelos preditivos treinados.
+   contextual (opcional, com consentimento) usa um perfil de padrões agregados do histórico da própria empresa, calculado no momento; sem modelos preditivos treinados.
    Voz depende do suporte do navegador (Web Speech API), com alternativa textual.
 10. **Observabilidade**: logs estruturados com request id (sem query string nem tokens no URL), métricas Prometheus em `/api/metrics` e rastreio OpenTelemetry (pedidos, hooks, chamadas ao fornecedor de IA e tarefas automáticas, com empresa e trace id), ligado por `OTEL_EXPORTER_OTLP_ENDPOINT`. Falta escolher o coletor; as consultas à base de dados não têm spans próprios (o Drizzle desta versão não os emite); captura de erros dedicada (ex.: Sentry) por decidir.
 11. **Backups/DR**: `pnpm backup` cria cópias encriptadas e `pnpm backup:verify` restaura e valida automaticamente (testado). Falta agendar na infraestrutura escolhida e replicar para outra região; RPO/RTO por definir.

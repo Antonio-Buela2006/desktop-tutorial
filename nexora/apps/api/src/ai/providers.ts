@@ -3,6 +3,7 @@
  * (orchestrator.ts) passa uma função `callTool` que executa as ferramentas no
  * servidor com as permissões do utilizador; o fornecedor nunca acede à BD.
  */
+import { recommendationsFrom } from "./profile.js";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.js";
 import type { AITool } from "./tools.js";
@@ -63,6 +64,23 @@ export const localProvider: AIProvider = {
       const amount = Number(expense[1].replace(/[\s.]/g, ""));
       const r = await callTool("record_expense", { amount, category: (expense[2] ?? "Diversos").trim() || "Diversos", description: message.slice(0, 200), occurredOn: new Date().toISOString().slice(0, 10) });
       out.push(r.pendingApproval ? (en ? "Expense proposed — financial movements require human approval." : "Despesa proposta — movimentos financeiros exigem aprovação humana.") : r.error ?? "OK");
+    }
+    // Recomendações personalizadas (aprendizagem contextual, spec 9.6)
+    if (!forecastKind && /(recomend|sugest|dica|conselho|recommend|suggest|advice|tips|padr[õo]es|pattern|h[áa]bitos)/.test(m)) {
+      if (!has("company_profile"))
+        out.push(en
+          ? "Personalised recommendations use your company's history and need contextual learning, which is off. An administrator can turn it on in AI assistant → AI policies."
+          : "As recomendações personalizadas usam o histórico da empresa e precisam da aprendizagem contextual, que está desligada. Um administrador pode ativá-la em Assistente IA → Políticas de IA.");
+      else {
+        const p = (await callTool("company_profile", {})).data as any;
+        const recs = recommendationsFrom(p, en);
+        out.push(
+          recs.length
+            ? (en ? "Recommendations based on your company's own history (last 90 days):\n" : "Recomendações com base no histórico da sua empresa (últimos 90 dias):\n") + recs.map((r) => `• ${r}`).join("\n") +
+                (p.notes?.length ? `\n${en ? "Note" : "Nota"}: ${p.notes.join(" ")}` : "")
+            : en ? "There is not enough history yet for personalised recommendations." : "Ainda não há histórico suficiente para recomendações personalizadas.",
+        );
+      }
     }
     if (forecastKind === "stock") {
       if (!has("forecast_stock")) return { text: deny, provider: "local", model: null };

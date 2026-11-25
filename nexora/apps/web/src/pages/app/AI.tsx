@@ -113,6 +113,32 @@ function Chat() {
   );
 }
 
+/** Transparência: o perfil que a IA usa, tal como é calculado agora (spec 9.6). */
+function ContextProfile() {
+  const { tr } = useI18n();
+  const { data } = useApi<any>(["ai-context-profile"], "/api/ai/context-profile");
+  if (!data?.enabled) return <p className="ml-6 text-xs muted"><T>Guarde a política para ver o que a IA aprende.</T></p>;
+  const p = data.profile;
+  const rows: [string, string][] = [];
+  if (p.sales) {
+    rows.push([tr("Vendas (90 dias)"), `${p.sales.orders} · ${tr("ticket médio")} ${p.sales.averageTicket}`]);
+    if (p.sales.bestWeekday) rows.push([tr("Dia mais forte"), `${tr(p.sales.bestWeekday)} (${p.sales.bestWeekdayShare}%)`]);
+    if (p.sales.topProducts.length) rows.push([tr("Produtos principais"), p.sales.topProducts.map((x: any) => `${x.name} (${x.share}%)`).join(", ")]);
+    rows.push([tr("Clientes recorrentes"), `${p.sales.repeatCustomerShare}%`]);
+    if (p.sales.bestMonth) rows.push([tr("Melhor mês / mais fraco"), `${p.sales.bestMonth.month} / ${p.sales.weakestMonth?.month ?? "—"}`]);
+  }
+  if (p.inventory) rows.push([tr("Produtos no nível de reposição"), `${p.inventory.atOrBelowReorder}/${p.inventory.products}`]);
+  if (p.finance?.topExpenseCategories?.length) rows.push([tr("Despesas principais"), p.finance.topExpenseCategories.map((x: any) => `${x.category} (${x.share}%)`).join(", ")]);
+  return (
+    <details className="ml-6 rounded-lg border border-slate-200 p-2 text-sm dark:border-slate-700">
+      <summary className="cursor-pointer text-xs font-medium"><T>Ver o que a IA aprendeu sobre a empresa</T></summary>
+      <dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-[auto_1fr]">{rows.flatMap(([k, v]) => [<dt key={k} className="muted">{k}</dt>, <dd key={k + "-v"}>{v}</dd>])}</dl>
+      {p.notes?.length > 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{p.notes.map((n: string) => tr(n)).join(" ")}</p>}
+      <p className="mt-2 text-xs muted">{tr(p.privacy)}</p>
+    </details>
+  );
+}
+
 const ACTION_STATUS: Record<string, string> = { pending: "Pendente", executed: "Executada", rejected: "Rejeitada", failed: "Falhou", canceled: "Cancelada" };
 
 function Approvals() {
@@ -182,7 +208,7 @@ function Policy() {
   const users = useApi<any>(["users"], "/api/company/users");
   const [f, setF] = useState<any>(null);
   useEffect(() => { if (data && !f) setF(data); }, [data, f]);
-  const save = useAction((v: any) => put("/api/ai/policy", v), [["ai-policy"], ["ai-usage"]]);
+  const save = useAction((v: any) => put("/api/ai/policy", v), [["ai-policy"], ["ai-usage"], ["ai-context-profile"]]);
   if (isLoading || !f) return error ? <ErrorState error={error} /> : <Loading />;
   const mods = ["crm", "inventory", "sales", "finance"].filter((m) => me.modules.includes(m));
   const toggle = (k: string, m: string) => setF({ ...f, [k]: f[k].includes(m) ? f[k].filter((x: string) => x !== m) : [...f[k], m] });
@@ -201,6 +227,8 @@ function Policy() {
         <label className="flex items-center gap-2"><input type="checkbox" checked={f.dualApprovalFinancial} onChange={(e) => setF({ ...f, dualApprovalFinancial: e.target.checked })} /><T>Dupla aprovação para movimentos financeiros</T></label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={f.alertsEnabled} onChange={(e) => setF({ ...f, alertsEnabled: e.target.checked })} /><T>Alertas inteligentes (stock baixo, despesas anormais…)</T></label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={f.learningEnabled} onChange={(e) => setF({ ...f, learningEnabled: e.target.checked })} /><T>Aprendizagem contextual com o histórico da empresa (isolada por empresa)</T></label>
+        <p className="-mt-2 ml-6 text-xs muted"><T>A IA passa a usar padrões do histórico da empresa (dias e meses fortes, produtos principais, recorrência de clientes, despesas principais) para personalizar análises e recomendações. Só agregados, calculados no momento e nunca guardados nem partilhados com outras empresas; desligar a opção deixa de os calcular.</T></p>
+        {f.learningEnabled && <ContextProfile />}
         <fieldset><legend className="label"><T>Idiomas</T></legend><div className="flex gap-3">{["pt", "en"].map((l) => <label key={l} className="flex items-center gap-1"><input type="checkbox" checked={f.languages.includes(l)} onChange={() => toggle("languages", l)} />{l.toUpperCase()}</label>)}</div></fieldset>
         {me.membership.level === "primary_admin" && (
           <fieldset><legend className="label"><T>Delegar configuração a administradores secundários</T></legend><div className="flex flex-wrap gap-3">{users.data?.users.filter((u: any) => u.level === "secondary_admin").map((u: any) => <label key={u.id} className="flex items-center gap-1"><input type="checkbox" checked={f.delegatedTo.includes(u.id)} onChange={() => toggle("delegatedTo", u.id)} />{u.user.name}</label>)}</div></fieldset>

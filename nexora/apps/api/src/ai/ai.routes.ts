@@ -1,4 +1,5 @@
 import { asLocale, describePreview } from "../core/messages.js";
+import { companyProfile } from "./profile.js";
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq, gte, sum } from "drizzle-orm";
 import { z } from "zod";
@@ -104,6 +105,15 @@ export async function aiRoutes(app: FastifyInstance) {
     const ctx = requireCtx(req);
     authorize(ctx, "ai.configure", "read");
     return getPolicy(ctx.tenant.id);
+  });
+
+  /** Transparência da aprendizagem contextual: exatamente o perfil que a IA usa (calculado agora, não guardado). */
+  app.get("/api/ai/context-profile", async (req) => {
+    const ctx = requireCtx(req);
+    authorize(ctx, "ai.configure", "read");
+    const policy = await getPolicy(ctx.tenant.id);
+    if (!policy.enabled || !policy.learningEnabled) return { enabled: false };
+    return { enabled: true, profile: await companyProfile(ctx) };
   });
 
   app.put("/api/ai/policy", async (req) => {

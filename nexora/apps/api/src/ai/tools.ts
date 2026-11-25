@@ -11,6 +11,7 @@ import { db } from "../db/client.js";
 import { customers, financeTransactions, products, salesOrders, stockLevels } from "../db/schema.js";
 import { authorize, branchCondition, type Ctx } from "../core/context.js";
 import { adjustStock, createCustomer, createFinanceTx, customerBody, dashboardKpis, monthlySales } from "../modules/business.routes.js";
+import { companyProfile } from "./profile.js";
 import { cashflowForecast, linearForecast, simulatePriceChange, stockCover } from "./predict.js";
 
 export type Sensitivity = "read" | "simple_write" | "sensitive";
@@ -129,6 +130,17 @@ export const TOOLS: AITool[] = [
     },
   },
   {
+    name: "company_profile",
+    description: "Padrões da empresa aprendidos com o seu próprio histórico (dias e meses fortes, produtos principais, recorrência de clientes, despesas principais), para personalizar análises e recomendações. Só agregados, sem dados pessoais.",
+    module: null,
+    permission: "dashboard.view",
+    sensitivity: "read",
+    costKey: "tool_read",
+    schema: z.object({}),
+    jsonSchema: empty,
+    run: (ctx) => companyProfile(ctx),
+  },
+  {
     name: "forecast_stock",
     description: "Previsão de rutura de stock: dias de cobertura e data provável de esgotar por produto, com base nas vendas dos últimos 90 dias.",
     module: "inventory",
@@ -217,8 +229,10 @@ export const TOOLS: AITool[] = [
 export const toolByName = (name: string) => TOOLS.find((t) => t.name === name);
 
 /** Ferramentas que este utilizador pode usar dada a política de IA da empresa. */
-export function toolsFor(ctx: Ctx, policy: { accessLevel: string; allowedModules: string[]; disabledModules: string[] }) {
+export function toolsFor(ctx: Ctx, policy: { accessLevel: string; allowedModules: string[]; disabledModules: string[]; learningEnabled?: boolean }) {
   return TOOLS.filter((t) => {
+    // Perfil de padrões da empresa: só com consentimento (aprendizagem contextual ligada).
+    if (t.name === "company_profile" && !policy.learningEnabled) return false;
     if (t.module) {
       if (policy.accessLevel === "restricted") return false;
       if (policy.accessLevel === "custom" && !policy.allowedModules.includes(t.module)) return false;

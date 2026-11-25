@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.21.0 — 2026-11-25
+- Aprendizagem contextual por empresa (spec 9.6). A opção já existia nas políticas de IA mas não tinha efeito; agora:
+  - com consentimento (opção ligada), a IA dispõe de um perfil de padrões da própria empresa: dia mais forte, produtos principais, recorrência de clientes, melhor e pior mês, produtos no nível de reposição e despesas principais;
+  - o assistente dá recomendações personalizadas ("Dá-me recomendações…"); com a opção desligada, explica como a ativar e não usa o histórico;
+  - o perfil tem só agregados (sem nomes nem contactos), é calculado no momento e nunca guardado, e respeita a empresa, as permissões e as unidades de quem pergunta;
+  - transparência: nas Políticas de IA, "Ver o que a IA aprendeu sobre a empresa" mostra exatamente o perfil usado.
+- 122 testes.
+
 ## 0.20.0 — 2026-11-25
 - Alertas inteligentes (spec 9.5):
   - escalonamento: um alerta importante (aviso ou crítico) que ninguém leu ao fim de N horas (24 por omissão, 0 desliga) sobe aos administradores, também por e-mail, uma só vez por alerta; não pode ser silenciado;
