@@ -147,20 +147,58 @@ export async function transferRoutes(app: FastifyInstance) {
     const ctx = requireCtx(req);
     authorize(ctx, "inventory.adjust");
     const { id } = parse(uuidParam, req.params);
+    // Sem `lines`, recebe-se tudo o que foi expedido. Com `lines`, indica-se o recebido por produto.
+    const body = parse(
+      z.object({
+        lines: z.array(z.object({ productId: z.string().uuid(), received: z.number().int().min(0) })).max(100).optional(),
+        note: z.string().trim().max(500).optional(),
+      }),
+      req.body ?? {},
+    );
     const t = await load(ctx, id);
     if (t.status !== "in_transit") throw new AppError(409, "ALREADY_PROCESSED", "Só guias expedidas podem ser recebidas.");
     if (!inScope(ctx, t.toBranchId)) throw forbidden("O destino está fora do seu âmbito.", "BRANCH_OUT_OF_SCOPE");
-    return db.transaction(async (tx) => {
-      const [claimed] = await tx.update(stockTransfers).set({ status: "received", receivedBy: ctx.membership.id, receivedAt: new Date() })
+    const given = new Map((body.lines ?? []).map((l) => [l.productId, l.received]));
+    for (const pid of given.keys()) if (!t.lines.some((l) => l.productId === pid)) throw badRequest("Produto que não consta da guia.");
+    const lines: TransferLine[] = t.lines.map((l) => {
+      const received = given.get(l.productId) ?? l.quantity;
+      if (received > l.quantity) throw new AppError(400, "RECEIVED_EXCEEDS_SHIPPED", `Não pode receber mais do que foi expedido (${l.sku}: ${l.quantity}).`);
+      return { ...l, received };
+    });
+    const shortfall = lines.filter((l) => l.received! < l.quantity);
+    if (shortfall.length && (body.note ?? "").length < 3) throw new AppError(400, "RECEIPT_NOTE_REQUIRED", "Indique o motivo da diferença entre o expedido e o recebido.");
+    const result = await db.transaction(async (tx) => {
+      const [claimed] = await tx.update(stockTransfers).set({ status: "received", lines, receiptNote: shortfall.length ? body.note : (body.note || null), receivedBy: ctx.membership.id, receivedAt: new Date() })
         .where(and(eq(stockTransfers.id, id), eq(stockTransfers.status, "in_transit"))).returning();
       if (!claimed) throw new AppError(409, "ALREADY_PROCESSED", "Esta guia já foi processada.");
-      for (const l of t.lines) {
+      for (const l of lines) {
+        if (!l.received) continue;
         const p = await lockProduct(tx, ctx.tenant.id, l.productId);
-        await applyMove(tx, { tenantId: ctx.tenant.id, product: p, branchId: t.toBranchId, delta: l.quantity, reason: `Guia ${t.number} (receção)`, refType: "transfer_in", refId: t.id, createdBy: ctx.membership.id });
+        await applyMove(tx, { tenantId: ctx.tenant.id, product: p, branchId: t.toBranchId, delta: l.received, reason: `Guia ${t.number} (receção)`, refType: "transfer_in", refId: t.id, createdBy: ctx.membership.id });
       }
       await audit({ ...auditBase(ctx), action: "transfer.received", entityType: "stock_transfer", entityId: t.id, summary: `Guia ${t.number} recebida no destino.` }, tx);
+      // A diferença já saiu da origem na expedição e não entra no destino: fica registada como perda em trânsito.
+      if (shortfall.length)
+        await audit({
+          ...auditBase(ctx),
+          action: "transfer.discrepancy",
+          entityType: "stock_transfer",
+          entityId: t.id,
+          summary: `Guia ${t.number}: receção com diferenças — ${shortfall.map((l) => `${l.sku} ${l.received}/${l.quantity}`).join(", ")}. Motivo: ${body.note}`,
+          metadata: { lines: shortfall.map((l) => ({ sku: l.sku, shipped: l.quantity, received: l.received, lost: l.quantity - l.received! })) },
+        }, tx);
       return claimed;
     });
+    if (shortfall.length)
+      await notifyByPermission(ctx.tenant.id, "inventory.approve_transfer", {
+        type: "inventory.transfer_discrepancy",
+        severity: "warning",
+        title: m("inventory.transfer_discrepancy.title", { number: t.number }),
+        body: m("inventory.transfer_discrepancy.body", { lines: shortfall.map((l) => `${l.sku} ${l.received}/${l.quantity}`).join(", "), note: body.note! }),
+        link: "/app/products?tab=transfers",
+        dedupeKey: `transfer-discrepancy:${t.id}`,
+      });
+    return result;
   });
 
   /** Guia de transporte em PDF. */

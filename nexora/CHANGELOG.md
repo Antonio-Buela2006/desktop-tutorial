@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0 — 2026-11-25
+- Receção parcial das guias de transferência: indica-se a quantidade recebida por linha (por omissão, tudo).
+  - Não se pode receber mais do que foi expedido; uma falta exige motivo.
+  - A diferença fica registada como perda em trânsito: auditoria própria (`transfer.discrepancy`, com expedido/recebido/perdido por SKU) e aviso a quem aprova transferências.
+  - A lista mostra "Recebida com diferenças" e o recebido/expedido; a guia em PDF inclui a coluna "Recebida" e o motivo.
+- 102 testes.
+
 ## 0.13.0 — 2026-11-25
 - Previsão de rutura de stock (spec 9.8): dias de cobertura, data provável de esgotar e dias até ao nível de reposição por produto, a partir das vendas confirmadas dos últimos 90 dias; respeita o âmbito por unidade. Visível na lista de produtos ("esgota em ~N dias") e no assistente.
 - Previsão de tesouraria: receitas, despesas e saldo mensal dos próximos meses, com intervalo de 80% conservador, pressupostos e limitações; só movimentos aprovados. Visível nas Finanças e no assistente.

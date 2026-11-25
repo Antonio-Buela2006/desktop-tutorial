@@ -633,7 +633,8 @@ export const stockLevels = pgTable(
   (t) => [primaryKey({ columns: [t.productId, t.branchId] }), index("stock_levels_tenant").on(t.tenantId)],
 );
 
-export type TransferLine = { productId: string; sku: string; name: string; quantity: number };
+/** `received` só existe depois da receção (pode ser menor que `quantity`: perda em trânsito). */
+export type TransferLine = { productId: string; sku: string; name: string; quantity: number; received?: number };
 
 /**
  * Guia de transferência entre localizações: pedida → expedida (aprovada; sai da origem e fica em trânsito)
@@ -659,6 +660,8 @@ export const stockTransfers = pgTable(
     shippedAt: ts("shipped_at"),
     receivedAt: ts("received_at"),
     decisionNote: text("decision_note"),
+    /** Motivo das diferenças na receção (obrigatório quando chega menos do que foi expedido). */
+    receiptNote: text("receipt_note"),
   },
   (t) => [uniqueIndex("stock_transfers_tenant_number").on(t.tenantId, t.number), index("stock_transfers_status").on(t.tenantId, t.status)],
 );

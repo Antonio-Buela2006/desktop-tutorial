@@ -22,6 +22,8 @@ const M: Record<string, Record<Locale, string>> = {
   },
   // Stock, finanças, IA
   "inventory.transfer_request.title": { pt: "Guia de transferência {number} aguarda aprovação", en: "Transfer order {number} awaits approval" },
+  "inventory.transfer_discrepancy.title": { pt: "Guia {number} recebida com diferenças", en: "Transfer order {number} received with discrepancies" },
+  "inventory.transfer_discrepancy.body": { pt: "Recebido/expedido: {lines}. Motivo: {note}", en: "Received/shipped: {lines}. Reason: {note}" },
   "finance.approval.title": { pt: "Despesa aguarda aprovação", en: "Expense awaits approval" },
   "ai.approval.title": { pt: "Ação da IA aguarda aprovação", en: "AI action awaits approval" },
   "ai.alert.low_stock.title": { pt: "{count} produto(s) com stock baixo", en: "{count} product(s) low on stock" },
@@ -158,6 +160,7 @@ const M: Record<string, Record<Locale, string>> = {
   "audit.tenant.registered": { pt: "Empresa registada", en: "Company registered" },
   "audit.transfer.canceled": { pt: "Guia de transferência cancelada", en: "Transfer order canceled" },
   "audit.transfer.received": { pt: "Guia de transferência recebida", en: "Transfer order received" },
+  "audit.transfer.discrepancy": { pt: "Receção de guia com diferenças", en: "Transfer order received with discrepancies" },
   "audit.transfer.rejected": { pt: "Guia de transferência rejeitada", en: "Transfer order rejected" },
   "audit.transfer.requested": { pt: "Guia de transferência pedida", en: "Transfer order requested" },
   "audit.transfer.shipped": { pt: "Guia de transferência expedida", en: "Transfer order shipped" },

@@ -546,6 +546,7 @@ function TransferOrders() {
   const allBranches = useApi<any[]>(["branches"], "/api/company/branches");
   const [creating, setCreating] = useState(false);
   const [reject, setReject] = useState<any | null>(null);
+  const [receiving, setReceiving] = useState<any | null>(null);
   const { toast, toastEl } = useToast();
   const act = useAction(({ id, action, body }: any) => post(`/api/inventory/transfer-orders/${id}/${action}`, body ?? {}), [["transfer-orders"], ["products"], ["movements"]]);
   const w = me.subscription.caps.write;
@@ -563,8 +564,11 @@ function TransferOrders() {
           { key: "number", header: "N.º", render: (r: any) => <span className="font-mono text-xs">{r.number}</span> },
           { key: "createdAt", header: "Data", render: (r: any) => fmtDate(r.createdAt) },
           { key: "route", header: "Percurso", render: (r: any) => <span>{loc(r.fromBranchId)} → {loc(r.toBranchId)}</span> },
-          { key: "lines", header: "Itens", render: (r: any) => r.lines.map((l: any) => `${l.quantity}× ${l.name}`).join(", ") },
-          { key: "status", header: "Estado", render: (r: any) => <Badge tone={TR_STATUS[r.status][1]}>{TR_STATUS[r.status][0]}</Badge> },
+          { key: "lines", header: "Itens", render: (r: any) => r.lines.map((l: any) => (l.received !== undefined && l.received < l.quantity ? `${l.received}/${l.quantity}× ${l.name}` : `${l.quantity}× ${l.name}`)).join(", ") },
+          { key: "status", header: "Estado", render: (r: any) => {
+            const short = r.status === "received" && r.lines.some((l: any) => l.received !== undefined && l.received < l.quantity);
+            return <span title={short ? r.receiptNote : undefined}><Badge tone={short ? "amber" : TR_STATUS[r.status][1]}>{short ? "Recebida com diferenças" : TR_STATUS[r.status][0]}</Badge></span>;
+          } },
           {
             key: "a", header: "", className: "text-right", render: (r: any) => (
               <div className="flex flex-wrap justify-end gap-1">
@@ -574,12 +578,13 @@ function TransferOrders() {
                   <Button size="sm" variant="secondary" disabled={!w} onClick={() => setReject(r)}>Rejeitar</Button>
                 </>}
                 {r.status === "requested" && r.requestedBy === me.membership.id && <Button size="sm" variant="ghost" disabled={!w} onClick={() => act.mutate({ id: r.id, action: "cancel" })}>Cancelar</Button>}
-                {r.status === "in_transit" && can(me, "inventory.adjust") && scoped(r.toBranchId) && <Button size="sm" disabled={!w} onClick={async () => { await act.mutateAsync({ id: r.id, action: "receive" }); toast("Guia recebida."); }}>Confirmar receção</Button>}
+                {r.status === "in_transit" && can(me, "inventory.adjust") && scoped(r.toBranchId) && <Button size="sm" disabled={!w} onClick={() => setReceiving(r)}>Confirmar receção</Button>}
               </div>
             ),
           },
         ]} />
       {creating && <TransferOrderForm onClose={() => setCreating(false)} onSaved={() => { setCreating(false); toast("Guia pedida — aguarda aprovação."); }} />}
+      {receiving && <ReceiveForm order={receiving} onClose={() => setReceiving(null)} onSaved={(short) => { setReceiving(null); toast(short ? "Guia recebida com diferenças." : "Guia recebida."); }} />}
       {reject && (
         <Modal open onClose={() => setReject(null)} title={`Rejeitar ${reject.number}`}>
           <RejectForm onCancel={() => setReject(null)} onConfirm={async (note) => { await act.mutateAsync({ id: reject.id, action: "reject", body: { note } }); setReject(null); }} />
@@ -587,6 +592,40 @@ function TransferOrders() {
       )}
       {toastEl}
     </>
+  );
+}
+
+/** Receção: quantidade recebida por linha (por omissão, tudo); faltas exigem motivo. */
+function ReceiveForm({ order, onClose, onSaved }: { order: any; onClose: () => void; onSaved: (short: boolean) => void }) {
+  const [got, setGot] = useState<Record<string, number>>(() => Object.fromEntries(order.lines.map((l: any) => [l.productId, l.quantity])));
+  const [note, setNote] = useState("");
+  const save = useAction((v: any) => post(`/api/inventory/transfer-orders/${order.id}/receive`, v), [["transfer-orders"], ["products"], ["movements"], ["stock-forecast"]]);
+  const short = order.lines.some((l: any) => got[l.productId] < l.quantity);
+  return (
+    <Modal open onClose={onClose} title={`Receção · ${order.number}`}>
+      <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); await save.mutateAsync({ lines: order.lines.map((l: any) => ({ productId: l.productId, received: got[l.productId] })), note: note || undefined }); onSaved(short); }}>
+        {save.error && <ErrorText error={save.error} />}
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-xs uppercase muted"><th className="py-1"><T>Produto</T></th><th><T>Expedida</T></th><th><T>Recebida</T></th></tr></thead>
+          <tbody>
+            {order.lines.map((l: any) => (
+              <tr key={l.productId} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="py-1.5">{l.sku} · {l.name}</td>
+                <td>{l.quantity}</td>
+                <td><Input type="number" min={0} max={l.quantity} className="w-24" aria-label={`Recebida ${l.sku}`} value={got[l.productId]} onChange={(e) => setGot({ ...got, [l.productId]: Math.min(l.quantity, Math.max(0, Math.floor(+e.target.value || 0))) })} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {short && (
+          <>
+            <Alert tone="warning"><T>A diferença fica registada como perda em trânsito: saiu da origem na expedição e não entra no destino. Quem aprova transferências é avisado.</T></Alert>
+            <Field label="Motivo da diferença"><Input required minLength={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex.: caixas danificadas no transporte" /></Field>
+          </>
+        )}
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button loading={save.isPending}>Confirmar receção</Button></div>
+      </form>
+    </Modal>
   );
 }
 

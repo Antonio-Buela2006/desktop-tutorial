@@ -14,7 +14,7 @@ const TX = {
     invoiceNote: "Documento informativo. Não constitui fatura fiscal certificada — formato fiscal e impostos pendentes de validação com consultoria local (Angola).",
     invoiceStatus: { issued: "EMITIDA", paid: "PAGA", partially_paid: "PARCIALMENTE PAGA", void: "ANULADA", refunded: "REEMBOLSADA", draft: "RASCUNHO" } as Record<string, string>,
     guide: "Guia de transporte", origin: "Origem", destination: "Destino", reason: "Motivo", carrier: "Transportador", requested: "Pedida", shipped: "Expedida", received: "Recebida",
-    guideCols: ["SKU", "Produto", "Quantidade"], units: "Total de unidades", shippedBy: "Expedido por", receivedBy: "Recebido por",
+    guideCols: ["SKU", "Produto", "Quantidade"], units: "Total de unidades", receivedCol: "Recebida", receiptNote: "Diferenças na receção", shippedBy: "Expedido por", receivedBy: "Recebido por",
     guideNote: "Documento interno de movimentação de mercadorias. O modelo fiscal de guia de transporte (Angola) está pendente de validação com consultoria local.",
     guideStatus: { requested: "PEDIDA", in_transit: "EM TRÂNSITO", received: "RECEBIDA", rejected: "REJEITADA", canceled: "CANCELADA" } as Record<string, string>,
     numberLocale: "pt-PT",
@@ -26,7 +26,7 @@ const TX = {
     invoiceNote: "Informational document. Not a certified tax invoice — tax format and taxes pending validation with local advisors (Angola).",
     invoiceStatus: { issued: "ISSUED", paid: "PAID", partially_paid: "PARTIALLY PAID", void: "VOID", refunded: "REFUNDED", draft: "DRAFT" } as Record<string, string>,
     guide: "Delivery note", origin: "Origin", destination: "Destination", reason: "Reason", carrier: "Carrier", requested: "Requested", shipped: "Shipped", received: "Received",
-    guideCols: ["SKU", "Product", "Quantity"], units: "Total units", shippedBy: "Shipped by", receivedBy: "Received by",
+    guideCols: ["SKU", "Product", "Quantity"], units: "Total units", receivedCol: "Received", receiptNote: "Receipt discrepancies", shippedBy: "Shipped by", receivedBy: "Received by",
     guideNote: "Internal goods movement document. The Angolan tax model for delivery notes is pending validation with local advisors.",
     guideStatus: { requested: "REQUESTED", in_transit: "IN TRANSIT", received: "RECEIVED", rejected: "REJECTED", canceled: "CANCELED" } as Record<string, string>,
     numberLocale: "en-GB",
@@ -151,7 +151,7 @@ export function buildInvoicePdf(inv: {
 
 /** Guia de transporte de mercadorias entre localizações da empresa. */
 export function buildTransferGuidePdf(
-  t: { number: string; status: string; lines: { sku: string; name: string; quantity: number }[]; reason: string; carrier: string | null; createdAt: Date; shippedAt: Date | null; receivedAt: Date | null },
+  t: { number: string; status: string; lines: { sku: string; name: string; quantity: number; received?: number }[]; reason: string; carrier: string | null; createdAt: Date; shippedAt: Date | null; receivedAt: Date | null; receiptNote?: string | null },
   info: { company: string; taxId: string | null; from: string; to: string },
   lc: Lc = "pt",
 ): Promise<Buffer> {
@@ -165,16 +165,21 @@ export function buildTransferGuidePdf(
     doc.text(`${x.origin}: ${info.from}`).text(`${x.destination}: ${info.to}`).text(`${x.reason}: ${t.reason}`).text(`${x.carrier}: ${t.carrier ?? "—"}`);
     doc.text(`${x.requested}: ${d(t.createdAt)}    ${x.shipped}: ${d(t.shippedAt)}    ${x.received}: ${d(t.receivedAt)}`).moveDown();
     const y0 = doc.y;
-    doc.font("Helvetica-Bold").fontSize(9).text(x.guideCols[0], 40, y0).text(x.guideCols[1], 140, y0).text(x.guideCols[2], 460, y0);
+    const showReceived = t.lines.some((l) => l.received !== undefined);
+    doc.font("Helvetica-Bold").fontSize(9).text(x.guideCols[0], 40, y0).text(x.guideCols[1], 140, y0).text(x.guideCols[2], showReceived ? 400 : 460, y0);
+    if (showReceived) doc.text(x.receivedCol, 480, y0);
     doc.font("Helvetica").moveDown(0.5);
     let total = 0;
     for (const l of t.lines) {
       const y = doc.y;
-      doc.text(l.sku, 40, y, { width: 95 }).text(l.name, 140, y, { width: 310 }).text(String(l.quantity), 460, y);
+      doc.text(l.sku, 40, y, { width: 95 }).text(l.name, 140, y, { width: showReceived ? 250 : 310 }).text(String(l.quantity), showReceived ? 400 : 460, y);
+      if (showReceived) doc.text(String(l.received ?? l.quantity), 480, y);
       doc.y = Math.max(doc.y, y + 12) + 3;
       total += l.quantity;
     }
-    doc.moveDown().font("Helvetica-Bold").text(`${x.units}: ${total}`, 40).font("Helvetica").moveDown(3);
+    doc.moveDown().font("Helvetica-Bold").text(`${x.units}: ${total}`, 40).font("Helvetica");
+    if (t.receiptNote) doc.moveDown(0.5).text(`${x.receiptNote}: ${t.receiptNote}`, 40, doc.y, { width: 515 });
+    doc.moveDown(3);
     const ys = doc.y;
     doc.text(`${x.shippedBy}: ____________________`, 40, ys).text(`${x.receivedBy}: ____________________`, 310, ys);
     doc.moveDown(3).fontSize(8).fillColor("#777").text(x.guideNote, 40, doc.y, { width: 515 });

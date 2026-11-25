@@ -389,4 +389,10 @@ export const EN: Record<string, string> = {
   "Histórico curto: intervalo de confiança largo.": "Short history: wide confidence interval.",
   "O intervalo do saldo combina os extremos das duas previsões e é deliberadamente largo.": "The balance interval combines the extremes of both forecasts and is deliberately wide.",
   "Não inclui saldo bancário inicial nem prazos de recebimento/pagamento.": "Does not include the opening bank balance or collection/payment terms.",
+  "Recebida com diferenças": "Received with discrepancies",
+  "Guia recebida com diferenças.": "Order received with discrepancies.",
+  "Expedida": "Shipped",
+  "A diferença fica registada como perda em trânsito: saiu da origem na expedição e não entra no destino. Quem aprova transferências é avisado.": "The difference is recorded as a loss in transit: it left the origin when shipped and does not enter the destination. Transfer approvers are notified.",
+  "Motivo da diferença": "Reason for the difference",
+  "Ex.: caixas danificadas no transporte": "E.g. boxes damaged in transit",
 };

@@ -91,4 +91,34 @@ describe("guias de transferência", () => {
     expect((await other.client.get(`/api/inventory/transfer-orders/${order.body.id}/guide`)).status).toBe(404);
     expect((await other.client.post("/api/inventory/transfer-orders", { fromBranchId: null, toBranchId: lda, lines: [{ productId: prod, quantity: 1 }], reason: "Alheio" })).status).toBe(400);
   });
+
+  it("receção parcial: entra só o recebido, a diferença exige motivo e fica registada", async () => {
+    const mgr = await addMember(t.client, ["gestor_stock"]);
+    const before = lvl(await product(), bgl);
+    const o = (await t.client.post("/api/inventory/transfer-orders", { fromBranchId: null, toBranchId: bgl, lines: [{ productId: prod, quantity: 6 }], reason: "Parcial" })).body;
+    expect((await mgr.client.post(`/api/inventory/transfer-orders/${o.id}/approve`, {})).body.status).toBe("in_transit");
+    const centralAfterShip = (await product()).centralQty;
+    // mais do que o expedido
+    const over = await t.client.post(`/api/inventory/transfer-orders/${o.id}/receive`, { lines: [{ productId: prod, received: 7 }] });
+    expect(over.status).toBe(400);
+    expect(over.body.error.code).toBe("RECEIVED_EXCEEDS_SHIPPED");
+    // falta sem motivo
+    const noNote = await t.client.post(`/api/inventory/transfer-orders/${o.id}/receive`, { lines: [{ productId: prod, received: 4 }] });
+    expect(noNote.body.error.code).toBe("RECEIPT_NOTE_REQUIRED");
+    // produto que não consta da guia
+    expect((await t.client.post(`/api/inventory/transfer-orders/${o.id}/receive`, { lines: [{ productId: "00000000-0000-4000-8000-000000000000", received: 1 }], note: "x" })).status).toBe(400);
+    const ok = await t.client.post(`/api/inventory/transfer-orders/${o.id}/receive`, { lines: [{ productId: prod, received: 4 }], note: "2 caixas danificadas no transporte" });
+    expect(ok.body).toMatchObject({ status: "received", receiptNote: "2 caixas danificadas no transporte" });
+    expect(ok.body.lines[0]).toMatchObject({ quantity: 6, received: 4 });
+    const p = await product();
+    expect(lvl(p, bgl)).toBe(before + 4);
+    expect(p.centralQty).toBe(centralAfterShip); // a origem já tinha saído na expedição
+    expect(p.inTransit).toBe(0);
+    // auditoria e aviso a quem aprova transferências
+    const auditR = await t.client.get("/api/audit?pageSize=50");
+    const ev = auditR.body.items.find((e: any) => e.action === "transfer.discrepancy" && e.entityId === o.id);
+    expect(ev.metadata.lines).toEqual([{ sku: "GT-P1", shipped: 6, received: 4, lost: 2 }]);
+    const n = (await mgr.client.get("/api/notifications")).body.items.find((x: any) => x.type === "inventory.transfer_discrepancy");
+    expect(n.title).toBe(`Guia ${o.number} recebida com diferenças`);
+  });
 });

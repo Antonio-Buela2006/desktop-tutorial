@@ -64,6 +64,13 @@
       "when": 1795525331006,
       "tag": "0008_notification_i18n_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795607839797,
+      "tag": "0009_transfer_partial_receipt",
+      "breakpoints": true
     }
   ]
 }
