@@ -35,6 +35,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Manual do utilizador em dia com a ajuda da aplicação
+        run: pnpm --filter @nexora/web manual --check
 
   # Testes no navegador contra a aplicação a correr: fluxos principais, inglês e acessibilidade (axe, WCAG 2.2 AA).
   e2e:

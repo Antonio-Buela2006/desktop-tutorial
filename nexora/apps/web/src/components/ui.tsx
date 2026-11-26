@@ -1,5 +1,6 @@
 import { Children, cloneElement, isValidElement, useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
 import { AlertTriangle, CheckCircle2, Inbox, Loader2, Lock, X } from "lucide-react";
+import { createPortal } from "react-dom";
 import { ApiError } from "../lib/api";
 import { translate, translateNode, useI18n } from "../lib/i18n";
 
@@ -197,7 +198,9 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
     };
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  // Portal para o <body>: um antepassado com transform/filter/backdrop-filter (ex.: o cabeçalho) tornaria o
+  // "fixed" relativo a ele e cortaria a janela.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4" onMouseDown={onClose}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}
         className={cx("card max-h-[92vh] w-full overflow-y-auto rounded-b-none sm:rounded-xl", wide ? "sm:max-w-3xl" : "sm:max-w-lg")}>
@@ -207,7 +210,8 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
         </header>
         <div className="p-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -4,11 +4,12 @@ import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Bell, Bot, Boxes, Building2, ClipboardList, CreditCard, Download, FileClock, LayoutDashboard, LogOut, Menu, Moon, Search, Shield, ShoppingCart,
-  Sun, Trash2, UserCog, Users, Wallet, Contact, X,
+  Sun, Trash2, UserCog, Users, Wallet, Contact, X, HelpCircle,
 } from "lucide-react";
+import { helpFor } from "../lib/help";
 import { api, post, useApi, useMe, type Me } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { Alert, Loading, cx } from "../components/ui";
+import { Alert, Loading, Modal, cx } from "../components/ui";
 import { Logo } from "./PublicLayout";
 
 type NavItem = { to: string; label: string; icon: ReactNode; perm?: string; module?: string };
@@ -220,6 +221,7 @@ export function AppLayout() {
             <select aria-label="Idioma" className="rounded-md border-0 bg-transparent px-1 py-1 text-xs" value={lang} onChange={(e) => { setLang(e.target.value as any); api("/api/auth/me", { method: "PATCH", body: { locale: e.target.value } }).then(() => qc.invalidateQueries()).catch(() => {}); }}>
               <option value="pt">PT</option><option value="en">EN</option>
             </select>
+            <HelpButton />
             <button onClick={toggle} className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={dark ? "Modo claro" : "Modo escuro"}>{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>
             {/* Nome acessível em texto oculto que inclui o número visível (WCAG 2.5.3 "Label in Name"). */}
             <Link to="/app/notifications" className="relative rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800">
@@ -238,5 +240,48 @@ export function AppLayout() {
         </main>
       </div>
     </div>
+  );
+}
+
+/** Ajuda contextual da página atual (spec 11). Também abre com a tecla "?" fora de campos de texto. */
+function HelpButton() {
+  const { lang } = useI18n();
+  const loc = useLocation();
+  const [open, setOpen] = useState(false);
+  const entry = helpFor(loc.pathname, lang === "en" ? "en" : "pt");
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.key === "?" && !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && !t.isContentEditable) setOpen(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  if (!entry) return null;
+  const en = lang === "en";
+  return (
+    <>
+      <button onClick={() => setOpen(true)} className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={en ? "Help for this page" : "Ajuda desta página"} aria-keyshortcuts="?">
+        <HelpCircle className="h-4 w-4" aria-hidden="true" />
+      </button>
+      {open && (
+        <Modal open onClose={() => setOpen(false)} title={`${en ? "Help" : "Ajuda"} · ${entry.title}`}>
+          <div className="space-y-3 text-sm">
+            <p>{entry.intro}</p>
+            <div>
+              <h3 className="mb-1 font-semibold">{en ? "How to" : "Como fazer"}</h3>
+              <ol className="list-decimal space-y-1 pl-5">{entry.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+            </div>
+            {entry.tips.length > 0 && (
+              <div>
+                <h3 className="mb-1 font-semibold">{en ? "Good to know" : "Bom saber"}</h3>
+                <ul className="list-disc space-y-1 pl-5 muted">{entry.tips.map((s) => <li key={s}>{s}</li>)}</ul>
+              </div>
+            )}
+            <p className="text-xs muted">{en ? "Press ? on any page to open its help." : "Carregue em ? em qualquer página para abrir a ajuda."}</p>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }

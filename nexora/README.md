@@ -71,6 +71,7 @@ pnpm build       # build da API e da web
 node tests/e2e/smoke.cjs   # E2E no navegador (com `pnpm dev` + seed; requer `npm i -g playwright && npx playwright install chromium`)
 node tests/e2e/i18n.cjs    # interface em inglês
 node tests/e2e/a11y.cjs    # acessibilidade (axe-core, WCAG 2.2 AA): público, app em tema claro e escuro, portal
+pnpm --filter @nexora/web manual   # regenera o manual do utilizador a partir da ajuda contextual (src/lib/help.ts)
 ```
 
 Os testes de integração cobrem: isolamento entre empresas (IDs manipulados, tenant_id injetado,

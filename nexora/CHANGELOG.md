@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.23.0 — 2026-11-26
+- Ajuda contextual (spec 11) em todas as páginas da aplicação, em PT/EN: botão "?" no topo ou tecla ?, com o que se pode fazer na página, os passos principais e dicas.
+- Manual do utilizador (`docs/manuals/user.md` e `user.en.md`) gerado a partir da mesma ajuda (`pnpm --filter @nexora/web manual`), para nunca divergir da aplicação; a integração contínua falha se o manual estiver desatualizado.
+- As janelas (modais) passam a ser desenhadas diretamente no corpo da página, para não ficarem cortadas quando abertas a partir do cabeçalho.
+
 ## 0.22.0 — 2026-11-26
 - Eliminação em lote com pré-visualização (spec 11) em clientes e produtos:
   - seleção de linhas nas tabelas (por linha ou a página inteira) e botão "Eliminar selecionados";
