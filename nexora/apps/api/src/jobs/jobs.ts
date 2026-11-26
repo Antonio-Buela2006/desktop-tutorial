@@ -1,0 +1,252 @@
+/**
+ * Jobs periódicos (worker). V1: agendador em processo (ver ADR-0004);
+ * interfaces preparadas para migrar para Redis/BullMQ quando a carga justificar.
+ * Cada job é idempotente e opera tenant a tenant.
+ */
+import { and, eq, gt, inArray, isNotNull, isNull, like, lt, lte, ne, sql as dsql } from "drizzle-orm";
+import { db, sql } from "../db/client.js";
+import {
+  aiCreditTransactions,
+  aiPolicies,
+  aiWallets,
+  customers,
+  employees,
+  financeTransactions,
+  invoices,
+  plans,
+  products,
+  subscriptions,
+  tenants,
+  jobRuns,
+  notifications,
+} from "../db/schema.js";
+import { audit } from "../core/audit.js";
+import { oldestUnpaidDueAt } from "../core/context.js";
+import { notifyByPermission } from "../core/notify.js";
+import { hostname } from "node:os";
+import { withSpan } from "../observability/tracing.js";
+import { m, render, asLocale } from "../core/messages.js";
+import { computeAccessState, daysOverdue, DAY } from "../core/subscription.js";
+import { nextInvoiceNumber } from "../core/tenantService.js";
+import { getSetting } from "../modules/billing.routes.js";
+import { purgeDeletedFiles } from "../modules/files.routes.js";
+import { DEFAULT_ALERTS } from "../modules/companyExtras.routes.js";
+import { purgeExpiredTrial } from "../core/retention.js";
+import { monthlySales } from "../modules/business.routes.js";
+
+/** Emite faturas de renovação 3 dias antes do fim do período (se não houver cancelamento). */
+export async function issueRenewals(now = new Date()) {
+  const due = await db.select({ s: subscriptions, p: plans }).from(subscriptions).innerJoin(plans, eq(plans.id, subscriptions.planId))
+    .where(and(eq(subscriptions.status, "active"), eq(subscriptions.cancelAtPeriodEnd, false), lte(subscriptions.currentPeriodEnd, new Date(now.getTime() + 3 * DAY))));
+  let n = 0;
+  for (const { s, p } of due) {
+    const key = `renewal:${s.currentPeriodEnd!.toISOString()}`;
+    const [exists] = await db.select({ id: invoices.id }).from(invoices).where(and(eq(invoices.tenantId, s.tenantId), dsql`${invoices.meta}->>'renewalKey' = ${key}`));
+    if (exists || p.priceMonthly === null) continue;
+    const amount = s.billingCycle === "yearly" ? p.priceYearly ?? p.priceMonthly * 12 : p.priceMonthly;
+    // A restrição única (tenant, renewalKey) impede duplicados mesmo com execuções simultâneas.
+    const created = await db.insert(invoices).values({
+      tenantId: s.tenantId, number: nextInvoiceNumber(), kind: "subscription", status: "issued", currency: p.currency,
+      lines: [{ description: `Renovação ${p.name}`, quantity: 1, unitPrice: amount, total: amount }], subtotal: amount, total: amount,
+      dueAt: s.currentPeriodEnd!, periodStart: s.currentPeriodEnd, meta: { renewalKey: key },
+    }).onConflictDoNothing().returning({ id: invoices.id });
+    if (!created.length) continue;
+    await notifyByPermission(s.tenantId, "billing.view", { type: "billing.renewal", title: m("billing.renewal.title"), body: m("billing.renewal.body", { date: s.currentPeriodEnd!.toISOString().slice(0, 10) }), link: "/app/billing", dedupeKey: key });
+    n++;
+  }
+  return n;
+}
+
+/** Atualiza estados persistentes (cancelamento terminado, trial expirado) e envia avisos de atraso. */
+export async function reconcileSubscriptions(now = new Date()) {
+  const subs = await db.select().from(subscriptions);
+  for (const s of subs) {
+    const due = await oldestUnpaidDueAt(s.tenantId);
+    const state = computeAccessState(s, due, now);
+    if (state === "canceled" && s.status === "active") {
+      // Transição condicional: só quem a faz regista a auditoria.
+      const changed = await db.update(subscriptions).set({ status: "canceled", updatedAt: now }).where(and(eq(subscriptions.id, s.id), eq(subscriptions.status, "active"))).returning({ id: subscriptions.id });
+      if (changed.length) await audit({ tenantId: s.tenantId, actorType: "system", action: "subscription.canceled", entityType: "subscription", entityId: s.id, summary: "Período pago terminou após cancelamento; acesso operacional suspenso, dados preservados." });
+    }
+    if (state === "trial_expired") {
+      await notifyByPermission(s.tenantId, "billing.view", { type: "trial.expired", severity: "critical", title: m("trial.expired.title"), body: m("trial.expired.body"), link: "/app/billing", dedupeKey: "trial-expired" });
+    } else if (s.status === "trial" && s.trialEndsAt && s.trialEndsAt.getTime() - now.getTime() < 3 * DAY) {
+      await notifyByPermission(s.tenantId, "billing.view", { type: "trial.ending", severity: "warning", title: m("trial.ending.title"), body: m("trial.ending.body", { date: s.trialEndsAt.toISOString().slice(0, 10) }), link: "/app/billing", dedupeKey: "trial-ending" });
+    }
+    const d = daysOverdue(due, now);
+    if (d > 0) {
+      const phase = d <= 3 ? "grace" : d <= 8 ? "read_only" : "suspended";
+      const msg = m(`billing.${phase}.title`);
+      await notifyByPermission(s.tenantId, "billing.view", { type: `billing.${phase}`, severity: phase === "grace" ? "warning" : "critical", title: msg, link: "/app/billing", dedupeKey: `overdue:${phase}:${due!.toISOString()}` }, { email: true });
+    }
+  }
+}
+
+/** Alertas inteligentes (configuráveis por empresa): stock baixo, despesas anormais, quebra de vendas. Sem excesso (dedupe diário). */
+export async function runAlerts(now = new Date()) {
+  const day = now.toISOString().slice(0, 10);
+  const list = await db.select({ t: tenants, p: aiPolicies }).from(tenants).innerJoin(aiPolicies, eq(aiPolicies.tenantId, tenants.id));
+  let sent = 0;
+  for (const { t, p } of list) {
+    if (!p.enabled || !p.alertsEnabled) continue;
+    const cfg = { ...DEFAULT_ALERTS, ...(t.settings.alerts ?? {}) };
+    const email = { email: cfg.emailCritical };
+    const roleCodes = cfg.recipientRoles ?? [];
+    if (cfg.lowStock) {
+      const low = await db.select({ name: products.name, stockQty: products.stockQty }).from(products)
+        .where(and(eq(products.tenantId, t.id), isNull(products.deletedAt), lte(products.stockQty, products.reorderLevel)));
+      if (low.length) {
+        const outOfStock = low.some((l) => l.stockQty <= 0);
+        sent += await notifyByPermission(t.id, "inventory.view", { type: "ai.alert.low_stock", severity: outOfStock ? "critical" : "warning", title: m(outOfStock ? "ai.alert.out_of_stock.title" : "ai.alert.low_stock.title", { count: low.length }), body: low.slice(0, 5).map((l) => `${l.name} (${l.stockQty})`).join(", "), link: "/app/products?lowStock=1", dedupeKey: `low-stock:${day}` }, { ...(outOfStock ? email : {}), roleCodes });
+      }
+    }
+    if (cfg.abnormalExpense) {
+      const [avg] = await db.select({ avg: dsql<number>`avg(${financeTransactions.amount})` }).from(financeTransactions)
+        .where(and(eq(financeTransactions.tenantId, t.id), eq(financeTransactions.kind, "expense"), isNull(financeTransactions.deletedAt), dsql`${financeTransactions.occurredOn} > now() - interval '90 days'`));
+      if (avg?.avg) {
+        const limit = Number(avg.avg) * cfg.abnormalExpenseMultiplier;
+        const big = await db.select().from(financeTransactions).where(and(eq(financeTransactions.tenantId, t.id), eq(financeTransactions.kind, "expense"), isNull(financeTransactions.deletedAt), dsql`${financeTransactions.createdAt} > now() - interval '1 day'`, dsql`${financeTransactions.amount} > ${limit}`));
+        for (const b of big)
+          sent += await notifyByPermission(t.id, "finance.view", { type: "ai.alert.expense", severity: "critical", title: m("ai.alert.expense.title"), body: m("ai.alert.expense.body", { category: b.category, amount: b.amount, multiplier: cfg.abnormalExpenseMultiplier, avg: Math.round(Number(avg.avg)) }), link: "/app/finance", dedupeKey: `expense:${b.id}` }, { ...email, roleCodes });
+      }
+    }
+    if (cfg.salesDrop && now.getUTCDate() >= 10) {
+      // Projeção do mês corrente vs média dos 3 meses anteriores
+      const hist = await monthlySales(t.id, 4);
+      const prev = hist.slice(0, 3).map((h) => h.total).filter((v) => v > 0);
+      if (prev.length === 3) {
+        const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+        const projected = (hist[3].total / now.getUTCDate()) * daysInMonth;
+        const base = prev.reduce((a, b) => a + b, 0) / 3;
+        const drop = Math.round(((base - projected) / base) * 100);
+        if (drop >= cfg.salesDropPct)
+          sent += await notifyByPermission(t.id, "sales.view", { type: "ai.alert.sales_drop", severity: "warning", title: m("ai.alert.sales_drop.title", { drop }), body: m("ai.alert.sales_drop.body", { projected: Math.round(projected), base: Math.round(base) }), link: "/app/sales", dedupeKey: `sales-drop:${hist[3].month}` }, { roleCodes });
+      }
+    }
+    sent += await escalateUnreadAlerts(t.id, cfg.escalateAfterHours ?? 24, now);
+  }
+  return sent;
+}
+
+/**
+ * Escalonamento (spec 9.5): um alerta importante que ninguém leu ao fim de `hours` horas sobe aos
+ * administradores da empresa (permissão settings.manage), também por e-mail, uma só vez por alerta.
+ * Só considera alertas da última semana; 0 horas desliga o escalonamento.
+ */
+export async function escalateUnreadAlerts(tenantId: string, hours: number, now = new Date()) {
+  if (!hours) return 0;
+  const rows = await db
+    .select({ key: notifications.dedupeKey, title: notifications.title, i18n: notifications.i18n, link: notifications.link, readAt: notifications.readAt })
+    .from(notifications)
+    .where(and(
+      eq(notifications.tenantId, tenantId),
+      like(notifications.type, "ai.alert.%"),
+      ne(notifications.type, "ai.alert.escalated"),
+      inArray(notifications.severity, ["warning", "critical"]),
+      isNotNull(notifications.dedupeKey),
+      lt(notifications.createdAt, new Date(now.getTime() - hours * 3_600_000)),
+      gt(notifications.createdAt, new Date(now.getTime() - 7 * DAY)),
+    ));
+  const groups = new Map<string, typeof rows>();
+  for (const r of rows) groups.set(r.key!, [...(groups.get(r.key!) ?? []), r]);
+  let sent = 0;
+  for (const [key, list] of groups) {
+    if (list.some((r) => r.readAt)) continue; // alguém já o leu
+    const first = list[0];
+    sent += await notifyByPermission(
+      tenantId,
+      "settings.manage",
+      { type: "ai.alert.escalated", severity: "critical", title: m("ai.alert.escalated.title", { hours }), body: first.i18n?.title ?? first.title, link: first.link ?? undefined, dedupeKey: `escalated:${key}` },
+      { email: true },
+    );
+  }
+  return sent;
+}
+
+/** Repõe a franquia mensal de créditos de IA (sem compras automáticas). */
+export async function resetAiAllowances(now = new Date()) {
+  const wallets = await db.select().from(aiWallets).where(lt(aiWallets.periodStart, new Date(now.getTime() - 30 * DAY)));
+  for (const w of wallets) {
+    const done = await db.update(aiWallets).set({ balance: Math.max(w.balance, w.monthlyAllowance), periodStart: now })
+      .where(and(eq(aiWallets.tenantId, w.tenantId), eq(aiWallets.periodStart, w.periodStart))).returning({ id: aiWallets.tenantId });
+    if (!done.length) continue; // outra execução já repôs este período
+    await db.insert(aiCreditTransactions).values({ tenantId: w.tenantId, amount: Math.max(0, w.monthlyAllowance - w.balance), operation: "monthly_allowance", reason: "Renovação mensal da franquia" });
+  }
+}
+
+/** Purga definitiva da lixeira após o prazo, exceto registos sob retenção legal (finanças) ou legal hold. */
+export async function purgeTrash(now = new Date()) {
+  const list = await db.select().from(tenants);
+  let purged = 0;
+  for (const t of list) {
+    if (t.settings.legalHold) continue;
+    const cutoff = new Date(now.getTime() - (t.settings.trashRetentionDays ?? 30) * DAY);
+    for (const table of [customers, products, employees] as const) {
+      const r = await db.delete(table as any).where(and(eq((table as any).tenantId, t.id), isNotNull((table as any).deletedAt), lt((table as any).deletedAt, cutoff))).returning({ id: (table as any).id }).catch(() => []);
+      purged += r.length;
+    }
+    purged += await purgeDeletedFiles(t.id, cutoff);
+    // finance_transactions: NUNCA purgados aqui — obrigação legal de conservação (prazo a validar).
+  }
+  if (purged) await audit({ tenantId: null, actorType: "system", action: "retention.trash_purged", summary: `${purged} registo(s) eliminados definitivamente após o prazo da lixeira.` });
+  return purged;
+}
+
+/**
+ * Retenção: demonstrações expiradas há mais de `trialSuspendedDays` têm os dados fictícios limpos
+ * automaticamente; empresas canceladas após `postCancelDays` são sinalizadas (a eliminação exige aprovação — §6.4).
+ */
+export async function retentionReview(now = new Date()) {
+  const r = await getSetting("retention", { postCancelDays: 90, trialSuspendedDays: 30 });
+  const trials = await db.select().from(subscriptions).where(and(eq(subscriptions.status, "trial"), lt(subscriptions.trialEndsAt, new Date(now.getTime() - (r.trialSuspendedDays ?? 30) * DAY))));
+  for (const s of trials) await purgeExpiredTrial(s.tenantId);
+  const ended = await db.select().from(subscriptions).where(and(inArray(subscriptions.status, ["canceled", "expired"]), lt(subscriptions.updatedAt, new Date(now.getTime() - r.postCancelDays * DAY))));
+  return ended.map((s) => s.tenantId);
+}
+
+export async function runAllJobs(now = new Date()) {
+  // Cada tarefa num span próprio (sem rastreio ativo, withSpan é transparente).
+  const job = <T>(name: string, fn: () => Promise<T>) => withSpan(`job.${name}`, { "nexora.job": name }, () => fn());
+  return withSpan("jobs.run", {}, async () => ({
+    renewals: await job("renewals", () => issueRenewals(now)),
+    reconcile: await job("reconcile", () => reconcileSubscriptions(now)),
+    alerts: await job("alerts", () => runAlerts(now)),
+    allowances: await job("allowances", () => resetAiAllowances(now)),
+    purged: await job("purge_trash", () => purgeTrash(now)),
+    retentionDue: await job("retention_review", () => retentionReview(now)),
+  }));
+}
+
+/* ---------------- Execução exclusiva e registo ---------------- */
+/** Chave do advisory lock do PostgreSQL partilhada por todos os processos (worker, API, portal). */
+export const JOBS_LOCK_KEY = 735_001;
+
+/**
+ * Executa todas as tarefas com exclusão mútua entre processos e instâncias (advisory lock numa ligação
+ * reservada) e regista a execução em `job_runs`. Se outra execução estiver em curso, não espera:
+ * regista `skipped` e devolve `{ skipped: true }`.
+ */
+export async function runJobsExclusive(trigger: "worker" | "inprocess" | "admin", now = new Date(), work: (now: Date) => Promise<Record<string, unknown>> = runAllJobs) {
+  const conn = await sql.reserve();
+  try {
+    const [{ locked }] = await conn<{ locked: boolean }[]>`select pg_try_advisory_lock(${JOBS_LOCK_KEY}) as locked`;
+    if (!locked) {
+      await db.insert(jobRuns).values({ trigger, status: "skipped", finishedAt: new Date(), durationMs: 0, host: hostname() });
+      return { skipped: true as const };
+    }
+    const started = Date.now();
+    const [run] = await db.insert(jobRuns).values({ trigger, status: "running", host: hostname() }).returning({ id: jobRuns.id });
+    try {
+      const result = await work(now);
+      await db.update(jobRuns).set({ status: "ok", finishedAt: new Date(), durationMs: Date.now() - started, result: result as Record<string, unknown> }).where(eq(jobRuns.id, run.id));
+      return { skipped: false as const, ...result };
+    } catch (e) {
+      await db.update(jobRuns).set({ status: "failed", finishedAt: new Date(), durationMs: Date.now() - started, error: String((e as Error).message).slice(0, 1000) }).where(eq(jobRuns.id, run.id));
+      throw e;
+    } finally {
+      await conn`select pg_advisory_unlock(${JOBS_LOCK_KEY})`;
+    }
+  } finally {
+    conn.release();
+  }
+}

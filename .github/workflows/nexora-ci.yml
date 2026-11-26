@@ -1,0 +1,84 @@
+name: Nexora CI
+
+on:
+  push:
+    paths: ["nexora/**", ".github/workflows/nexora-ci.yml"]
+  pull_request:
+    paths: ["nexora/**", ".github/workflows/nexora-ci.yml"]
+
+defaults:
+  run:
+    working-directory: nexora
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: nexora_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/nexora_test
+      ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      PAYMENT_WEBHOOK_SECRET: ci-webhook-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { package_json_file: nexora/package.json }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: nexora/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: Manual do utilizador em dia com a ajuda da aplicação
+        run: pnpm --filter @nexora/web manual --check
+
+  # Testes no navegador contra a aplicação a correr: fluxos principais, inglês e acessibilidade (axe, WCAG 2.2 AA).
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: nexora }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nexora
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/nexora
+      ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      PAYMENT_WEBHOOK_SECRET: ci-webhook-secret
+      DISABLE_INPROCESS_JOBS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { package_json_file: nexora/package.json }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: nexora/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - name: Playwright (Chromium)
+        run: |
+          npm install -g playwright@1.63.0
+          npx -y playwright@1.63.0 install --with-deps chromium
+      - name: Base de dados (migrations + dados fictícios de demonstração)
+        run: pnpm db:migrate && pnpm db:seed
+      - name: Arrancar API e interface
+        run: |
+          (cd apps/api && nohup npx tsx src/server.ts > /tmp/api.log 2>&1 &)
+          (cd apps/web && nohup npx vite --port 5173 > /tmp/web.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf localhost:4000/api/health >/dev/null && curl -sf localhost:5173 >/dev/null && break; sleep 2; done
+          curl -sf localhost:4000/api/health
+      - name: Testes no navegador
+        run: |
+          export NODE_PATH="$(npm root -g)"
+          node tests/e2e/smoke.cjs
+          node tests/e2e/i18n.cjs
+          node tests/e2e/a11y.cjs
+      - name: Registos em caso de falha
+        if: failure()
+        run: tail -n 100 /tmp/api.log /tmp/web.log

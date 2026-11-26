@@ -1,0 +1,1 @@
+ALTER TABLE "stock_transfers" ADD COLUMN "receipt_note" text;
