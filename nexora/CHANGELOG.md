@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.0 — 2026-11-26
+- Acessos suspeitos (spec 10.2):
+  - entrar com sucesso depois de 3 ou mais tentativas de palavra-passe errada avisa o titular, na aplicação e por e-mail, com o número de tentativas e o IP, e fica auditado (`security.suspicious_login`);
+  - o bloqueio da conta por tentativas erradas também avisa o titular, por e-mail, mesmo que não consiga entrar;
+  - avisos não silenciáveis, em todas as empresas onde a pessoa tem acesso e no idioma da conta.
+- Ajuda da página de segurança e manual atualizados.
+- 127 testes.
+
 ## 0.23.0 — 2026-11-26
 - Ajuda contextual (spec 11) em todas as páginas da aplicação, em PT/EN: botão "?" no topo ou tecla ?, com o que se pode fazer na página, os passos principais e dicas.
 - Manual do utilizador (`docs/manuals/user.md` e `user.en.md`) gerado a partir da mesma ajuda (`pnpm --filter @nexora/web manual`), para nunca divergir da aplicação; a integração contínua falha se o manual estiver desatualizado.

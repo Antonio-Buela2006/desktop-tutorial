@@ -13,13 +13,15 @@ import { clientInfo, parse, setSessionCookie } from "../core/http.js";
 import { SESSION_COOKIE, requireCtx, auditBase } from "../core/context.js";
 import { assertCapacity, createTenant } from "../core/tenantService.js";
 import { seedDemoData } from "../core/demoData.js";
-import { notifyMembership, sendMail } from "../core/notify.js";
+import { notifyMembership, notifyUserSecurity, sendMail } from "../core/notify.js";
 import { m, render, asLocale } from "../core/messages.js";
 import { config } from "../config.js";
 import { assertIpAllowed, recordAuthFailure } from "../core/ipguard.js";
 
 const MAX_FAILED = 5;
 const LOCK_MINUTES = 15;
+/** Entrada certa após este número de tentativas erradas gera um aviso de acesso suspeito. */
+const SUSPICIOUS_AFTER_FAILURES = 3;
 
 async function startSession(req: FastifyRequest, reply: FastifyReply, user: typeof users.$inferSelect, membership: typeof memberships.$inferSelect) {
   const [tenant] = await db.select().from(tenants).where(eq(tenants.id, membership.tenantId));
@@ -113,10 +115,32 @@ export async function authRoutes(app: FastifyInstance) {
         .set({ failedLogins: failed, lockedUntil: failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null })
         .where(eq(users.id, user.id));
       await recordAuthFailure(req.ip, "login");
-      if (failed >= MAX_FAILED) await audit({ tenantId: null, actorType: "system", action: "auth.account_locked", entityType: "user", entityId: user.id, summary: "Conta bloqueada temporariamente por tentativas falhadas.", ip: req.ip });
+      if (failed >= MAX_FAILED) {
+        await audit({ tenantId: null, actorType: "system", action: "auth.account_locked", entityType: "user", entityId: user.id, summary: "Conta bloqueada temporariamente por tentativas falhadas.", ip: req.ip });
+        // O titular fica a saber, mesmo que não consiga entrar (e-mail).
+        await notifyUserSecurity(user.id, {
+          type: "security.account_locked",
+          severity: "critical",
+          title: m("security.account_locked.title"),
+          body: m("security.account_locked.body", { count: failed, ip: req.ip, minutes: LOCK_MINUTES }),
+          link: "/app/security",
+          dedupeKey: `locked:${user.id}:${new Date().toISOString().slice(0, 13)}`,
+        });
+      }
       throw fail();
     }
     await db.update(users).set({ failedLogins: 0, lockedUntil: null }).where(eq(users.id, user.id));
+    // Entrada certa depois de várias erradas: pode ser alguém que adivinhou a palavra-passe.
+    if (user.failedLogins >= SUSPICIOUS_AFTER_FAILURES) {
+      await audit({ tenantId: null, actorType: "system", action: "security.suspicious_login", entityType: "user", entityId: user.id, summary: `Entrada após ${user.failedLogins} tentativas falhadas.`, ip: req.ip, metadata: { failedAttempts: user.failedLogins } });
+      await notifyUserSecurity(user.id, {
+        type: "security.suspicious_login",
+        severity: "warning",
+        title: m("security.suspicious_login.title"),
+        body: m("security.suspicious_login.body", { count: user.failedLogins, ip: req.ip }),
+        link: "/app/security",
+      });
+    }
     const ms = await db.select({ m: memberships, t: tenants }).from(memberships).innerJoin(tenants, eq(tenants.id, memberships.tenantId))
       .where(and(eq(memberships.userId, user.id), eq(memberships.status, "active"))).orderBy(asc(memberships.createdAt));
     if (!ms.length) throw new AppError(403, "NO_ACTIVE_COMPANY", "A sua conta não tem acesso ativo a nenhuma empresa.");

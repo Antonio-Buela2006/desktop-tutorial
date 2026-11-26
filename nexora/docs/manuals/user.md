@@ -242,4 +242,4 @@
 
 **Bom saber**
 
-- É avisado quando há acesso a partir de um novo dispositivo.
+- É avisado (na aplicação e por e-mail) quando há acesso a partir de um novo dispositivo, quando alguém entra depois de várias tentativas falhadas e quando a conta é bloqueada por tentativas erradas.

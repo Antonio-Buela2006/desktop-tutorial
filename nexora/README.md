@@ -66,7 +66,7 @@ Repor a base local: `pnpm db:reset` (proibido em produção).
 
 ```bash
 pnpm typecheck   # TypeScript strict (api + web)
-pnpm test        # 124 testes: unitários + integração em PostgreSQL real (base nexora_test)
+pnpm test        # 127 testes: unitários + integração em PostgreSQL real (base nexora_test)
 pnpm build       # build da API e da web
 node tests/e2e/smoke.cjs   # E2E no navegador (com `pnpm dev` + seed; requer `npm i -g playwright && npx playwright install chromium`)
 node tests/e2e/i18n.cjs    # interface em inglês

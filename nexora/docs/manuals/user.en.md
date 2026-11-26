@@ -242,4 +242,4 @@
 
 **Good to know**
 
-- You are notified when there is a sign-in from a new device.
+- You are notified (in the app and by email) of a sign-in from a new device, a sign-in after several failed attempts, and when the account is locked after wrong attempts.

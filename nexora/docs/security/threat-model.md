@@ -5,7 +5,7 @@ faturação, configuração comercial, registos de auditoria, capacidade de aç�
 
 | Ameaça | Vetor | Mitigação implementada | Verificação |
 | --- | --- | --- | --- |
-| **S**poofing — roubo de conta | credential stuffing, phishing | bcrypt (12 rondas), bloqueio após 5 falhas (15 min), 2FA TOTP + códigos de recuperação de uso único (hash), política de 2FA por empresa, alerta de novo dispositivo, término remoto de sessões | `ai-security.test.ts` (2FA, bloqueio) |
+| **S**poofing — roubo de conta | credential stuffing, phishing | bcrypt (12 rondas), bloqueio após 5 falhas (15 min), 2FA TOTP + códigos de recuperação de uso único (hash), política de 2FA por empresa, alerta de novo dispositivo, aviso ao titular (app + e-mail) de entrada após ≥3 tentativas falhadas e de bloqueio da conta, término remoto de sessões | `ai-security.test.ts` (2FA, bloqueio), `suspicious-login.test.ts` |
 | Sequestro de sessão | roubo de cookie, CSRF | token aleatório 256 bits guardado como SHA-256, cookie httpOnly + SameSite=Lax (+ secure em prod), cabeçalho anti-CSRF obrigatório em escritas, expiração por inatividade e absoluta | `isolation.test.ts` (CSRF) |
 | **T**ampering — alteração de auditoria | acesso à BD | cadeia de hashes por tenant + endpoint de verificação | `ai-security.test.ts` |
 | Webhooks forjados / repetidos | chamada direta ao endpoint | HMAC-SHA256 com comparação em tempo constante, idempotência por `event_id`, transição de estado condicional | `billing.test.ts` |

@@ -222,13 +222,13 @@ export const HELP: Record<string, Bi> = {
       title: "Segurança da conta",
       intro: "Palavra-passe, autenticação de dois fatores e sessões ativas.",
       steps: ["Ative o 2FA com uma aplicação autenticadora (Google ou Microsoft Authenticator) e guarde os códigos de recuperação.", "Termine sessões em dispositivos que não reconhece.", "Altere a palavra-passe: as outras sessões são terminadas."],
-      tips: ["É avisado quando há acesso a partir de um novo dispositivo."],
+      tips: ["É avisado (na aplicação e por e-mail) quando há acesso a partir de um novo dispositivo, quando alguém entra depois de várias tentativas falhadas e quando a conta é bloqueada por tentativas erradas."],
     },
     en: {
       title: "Account security",
       intro: "Password, two-factor authentication and active sessions.",
       steps: ["Turn on 2FA with an authenticator app (Google or Microsoft Authenticator) and keep the recovery codes.", "End sessions on devices you do not recognise.", "Change your password: other sessions are ended."],
-      tips: ["You are notified when there is a sign-in from a new device."],
+      tips: ["You are notified (in the app and by email) of a sign-in from a new device, a sign-in after several failed attempts, and when the account is locked after wrong attempts."],
     },
   },
 };

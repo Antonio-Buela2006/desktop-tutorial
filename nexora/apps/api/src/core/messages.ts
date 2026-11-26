@@ -14,6 +14,16 @@ const M: Record<string, Record<Locale, string>> = {
     pt: "Início de sessão a partir de {agent} (IP {ip}). Se não foi você, termine a sessão e altere a palavra-passe.",
     en: "Sign-in from {agent} (IP {ip}). If this wasn't you, end the session and change your password.",
   },
+  "security.suspicious_login.title": { pt: "Entrada na sua conta após várias tentativas falhadas", en: "Sign-in to your account after several failed attempts" },
+  "security.suspicious_login.body": {
+    pt: "Houve {count} tentativa(s) de palavra-passe errada antes desta entrada (IP {ip}). Se não foi você, altere já a palavra-passe e ative o 2FA.",
+    en: "There were {count} wrong password attempt(s) before this sign-in (IP {ip}). If this wasn't you, change your password now and turn on 2FA.",
+  },
+  "security.account_locked.title": { pt: "A sua conta foi bloqueada temporariamente", en: "Your account was temporarily locked" },
+  "security.account_locked.body": {
+    pt: "Houve {count} tentativas de palavra-passe errada (última a partir do IP {ip}). A conta fica bloqueada {minutes} minutos. Se não foi você, recupere a palavra-passe e ative o 2FA.",
+    en: "There were {count} wrong password attempts (last from IP {ip}). The account is locked for {minutes} minutes. If this wasn't you, reset your password and turn on 2FA.",
+  },
   "security.unknown_device": { pt: "dispositivo desconhecido", en: "unknown device" },
   "ownership.transfer.title": { pt: "Pedido de transferência de administração principal", en: "Primary administrator transfer request" },
   "ownership.transfer.body": {
@@ -146,6 +156,7 @@ const M: Record<string, Record<Locale, string>> = {
   "audit.sale.canceled": { pt: "Venda anulada", en: "Sale canceled" },
   "audit.sale.created": { pt: "Venda registada", en: "Sale recorded" },
   "audit.security.keys_rotated": { pt: "Chave de encriptação rodada", en: "Encryption key rotated" },
+  "audit.security.suspicious_login": { pt: "Entrada após tentativas falhadas", en: "Sign-in after failed attempts" },
   "audit.security.ip_blocked": { pt: "IP bloqueado", en: "IP blocked" },
   "audit.settings.updated": { pt: "Definições da empresa alteradas", en: "Company settings updated" },
   "audit.subscription.activated": { pt: "Subscrição ativada", en: "Subscription activated" },

@@ -116,3 +116,19 @@ export function localizeNotification<T extends { title: string; body: string; i1
   const { i18n, ...rest } = n;
   return { ...rest, title: i18n?.title ? render(i18n.title, lc) : n.title, body: i18n?.body ? render(i18n.body, lc) : n.body };
 }
+
+/**
+ * Aviso de segurança ao titular de uma conta: notificação em todas as empresas onde tem acesso ativo e
+ * um e-mail no seu idioma (não silenciável: tipos "security.*").
+ */
+export async function notifyUserSecurity(userId: string, n: NotifyInput & { type: `security.${string}` }) {
+  const rows = await db.select({ m: memberships, email: users.email, locale: users.locale }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
+    .where(and(eq(memberships.userId, userId), eq(memberships.status, "active")));
+  for (const r of rows) await notifyMembership(r.m.tenantId, r.m.id, n);
+  const [u] = await db.select({ email: users.email, locale: users.locale }).from(users).where(eq(users.id, userId));
+  if (u) {
+    const lc = asLocale(u.locale);
+    await sendMail(u.email, render(m("mail.subject_prefix", { title: n.title }), lc), render(n.body, lc));
+  }
+  return rows.length;
+}
