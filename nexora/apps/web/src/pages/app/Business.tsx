@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { Plus, Trash2, Pencil, PackagePlus, Ban, Check, X, Paperclip, ArrowLeftRight } from "lucide-react";
 import { DocumentsModal } from "../../components/Documents";
 import { ImportModal } from "../../components/Import";
+import { BulkDeleteModal } from "../../components/Bulk";
 import { del, fmtDate, fmtDateTime, fmtMoney, fmtNum, post, put, useAction, useApi, type Me } from "../../lib/api";
 import { Alert, Badge, Button, Card, DataTable, ErrorState, ErrorText, Field, Input, Loading, Modal, PageHeader, Select, Stat, useConfirm, useToast, useUnsavedGuard } from "../../components/ui";
 import { can } from "../../layouts/AppLayout";
@@ -122,6 +123,7 @@ function Onboarding() {
 /* ============================== Clientes ============================== */
 export function Customers() {
   const me = useMeCtx();
+  const { tr } = useI18n();
   const list = useList("customers", "/api/crm/customers");
   const [edit, setEdit] = useState<any | null>(null);
   const [docs, setDocs] = useState<any | null>(null);
@@ -130,12 +132,18 @@ export function Customers() {
   const { toast, toastEl } = useToast();
   const remove = useAction((id: string) => del(`/api/crm/customers/${id}`), [["customers"]]);
   const w = me.subscription.caps.write;
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState(false);
+  const canBulk = can(me, "crm.delete") && w;
   return (
     <>
+      {bulk && <BulkDeleteModal endpoint="/api/crm/customers/bulk-delete" ids={[...sel]} invalidate={[["customers"]]} onClose={() => setBulk(false)} onDone={(n) => { setBulk(false); setSel(new Set()); toast(`${n} ${tr("movido(s) para a lixeira.")}`); }} />}
       <PageHeader title="Clientes" subtitle="Cadastro e contactos comerciais." actions={can(me, "crm.create") && <><Button variant="secondary" disabled={!w} onClick={() => setImporting(true)}>Importar CSV</Button><Button disabled={!w} onClick={() => setEdit({})}><Plus className="h-4 w-4" /> <T>Novo cliente</T></Button></>} />
       <DataTable
         rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error}
         search={list.q} onSearch={list.setQ} sort={list.sort} onSort={list.onSort}
+        {...(canBulk ? { selected: sel, onSelect: setSel } : {})}
+        toolbar={canBulk && sel.size > 0 && <Button size="sm" variant="danger" onClick={() => setBulk(true)}><Trash2 className="h-4 w-4" /> {tr("Eliminar selecionados")} ({sel.size})</Button>}
         columns={[
           { key: "name", header: "Nome", sortable: true, render: (r: any) => <span className="font-medium">{r.name}</span> },
           { key: "email", header: "E-mail", render: (r: any) => r.email ?? "—" },
@@ -197,6 +205,8 @@ export function Products() {
   // Previsão de rutura (vendas dos últimos 90 dias), por SKU
   const forecast = useApi<any>(["stock-forecast"], "/api/inventory/stock-forecast");
   const cover = new Map<string, any>((forecast.data?.items ?? []).map((i: any) => [i.sku, i]));
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState(false);
   const [edit, setEdit] = useState<any | null>(null);
   const [adjust, setAdjust] = useState<any | null>(null);
   const [transfer, setTransfer] = useState<any | null>(null);
@@ -208,9 +218,11 @@ export function Products() {
   const { toast, toastEl } = useToast();
   const remove = useAction((id: string) => del(`/api/inventory/products/${id}`), [["products"]]);
   const w = me.subscription.caps.write;
+  const canBulk = can(me, "inventory.delete") && w;
   const cur = me.tenant.currency;
   return (
     <>
+      {bulk && <BulkDeleteModal endpoint="/api/inventory/products/bulk-delete" ids={[...sel]} invalidate={[["products"], ["stock-forecast"]]} onClose={() => setBulk(false)} onDone={(n) => { setBulk(false); setSel(new Set()); toast(`${n} ${tr("movido(s) para a lixeira.")}`); }} />}
       <PageHeader title="Stock e inventário" subtitle="Produtos, níveis de stock e ajustes rastreáveis." actions={<>
         <Button variant="secondary" onClick={() => setShowMoves(true)}><T>Movimentos</T></Button>
         {can(me, "inventory.create") && <Button variant="secondary" disabled={!w} onClick={() => setImporting(true)}>Importar CSV</Button>}
@@ -223,7 +235,11 @@ export function Products() {
       </div>
       {tab === "transfers" ? <TransferOrders /> : <DataTable sort={list.sort} onSort={list.onSort}
         rows={list.data?.items} total={list.data?.total} page={list.page} pageSize={20} onPage={list.setPage} loading={list.isLoading} error={list.error} search={list.q} onSearch={list.setQ}
-        toolbar={<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> <T>Só stock baixo</T></label>}
+        {...(canBulk ? { selected: sel, onSelect: setSel } : {})}
+        toolbar={<>
+          {canBulk && sel.size > 0 && <Button size="sm" variant="danger" onClick={() => setBulk(true)}><Trash2 className="h-4 w-4" /> {tr("Eliminar selecionados")} ({sel.size})</Button>}
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={low} onChange={(e) => setLow(e.target.checked)} /> <T>Só stock baixo</T></label>
+        </>}
         columns={[
           { key: "sku", header: "SKU", sortable: true },
           { key: "name", header: "Produto", sortable: true, render: (r: any) => <span className="font-medium">{r.name}</span> },

@@ -70,7 +70,9 @@ describe("documentos e ações da IA no idioma do leitor", () => {
       const raw = (await app.inject({ method: "GET", url: `/api/inventory/transfer-orders/${o.id}/guide`, headers: { cookie: t.client.cookie } })).rawPayload;
       const out: string[] = [];
       const s = raw.toString("latin1");
-      for (const mt of s.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+      // Separador exato do PDFKit ("stream\n" … "\nendstream"): aceitar "\r" opcional cortaria o último
+      // byte dos dados comprimidos quando este é 0x0D, e a descompressão falharia (teste instável).
+      for (const mt of s.matchAll(/stream\n([\s\S]*?)\nendstream/g)) {
         try {
           out.push(zlib.inflateSync(Buffer.from(mt[1], "latin1")).toString("latin1"));
         } catch {}

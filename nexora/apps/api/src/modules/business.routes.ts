@@ -7,7 +7,7 @@ import type { FastifyInstance } from "fastify";
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql as dsql, sum, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, type DbOrTx } from "../db/client.js";
-import { customers, employees, financeTransactions, products, salesOrders, stockLevels, stockMovements, type SaleLine } from "../db/schema.js";
+import { customers, employees, financeTransactions, products, salesOrders, stockLevels, stockMovements, stockTransfers, type SaleLine } from "../db/schema.js";
 import { applyMove, centralQty, lockProduct, transfer } from "../core/inventory.js";
 import { randomUUID } from "node:crypto";
 import { inTransitByProduct } from "./transfers.routes.js";
@@ -180,6 +180,63 @@ export async function businessRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  /* Eliminação em lote com pré-visualização (spec 11): dryRun mostra o efeito em cada registo sem alterar nada. */
+  const bulkBody = z.object({ ids: z.array(z.string().uuid()).min(1).max(100), dryRun: z.boolean().default(true) });
+
+  app.post("/api/crm/customers/bulk-delete", async (req) => {
+    const ctx = requireCtx(req);
+    authorize(ctx, "crm.delete");
+    const { ids, dryRun } = parse(bulkBody, req.body);
+    const unique = [...new Set(ids)];
+    return db.transaction(async (tx) => {
+      const rows = await tx.select({ id: customers.id, name: customers.name }).from(customers)
+        .where(and(eq(customers.tenantId, ctx.tenant.id), inArray(customers.id, unique), isNull(customers.deletedAt))).for("update");
+      const since = new Date(Date.now() - 90 * 86_400_000);
+      const recent = new Set((await tx.select({ id: salesOrders.customerId }).from(salesOrders)
+        .where(and(eq(salesOrders.tenantId, ctx.tenant.id), inArray(salesOrders.customerId, unique), gte(salesOrders.soldAt, since), eq(salesOrders.status, "confirmed")))).map((r) => r.id));
+      const items = unique.map((id) => {
+        const r = rows.find((x) => x.id === id);
+        if (!r) return { id, label: null, status: "not_found" as const, warnings: [] as { code: string }[] };
+        return { id, label: r.name, status: "ok" as const, warnings: recent.has(id) ? [{ code: "RECENT_SALES" }] : [] };
+      });
+      const ok = items.filter((i) => i.status === "ok").map((i) => i.id);
+      let applied = 0;
+      if (!dryRun && ok.length) {
+        const done = await tx.update(customers).set({ deletedAt: new Date() }).where(and(eq(customers.tenantId, ctx.tenant.id), inArray(customers.id, ok), isNull(customers.deletedAt))).returning({ id: customers.id, name: customers.name });
+        for (const c of done) await audit({ ...auditBase(ctx), action: "customer.deleted", entityType: "customer", entityId: c.id, summary: `Cliente ${c.name} movido para a lixeira (eliminação em lote).` }, tx);
+        applied = done.length;
+      }
+      return { dryRun, items, applied };
+    });
+  });
+
+  app.post("/api/inventory/products/bulk-delete", async (req) => {
+    const ctx = requireCtx(req);
+    authorize(ctx, "inventory.delete");
+    const { ids, dryRun } = parse(bulkBody, req.body);
+    const unique = [...new Set(ids)];
+    return db.transaction(async (tx) => {
+      const rows = await tx.select({ id: products.id, sku: products.sku, name: products.name, stockQty: products.stockQty }).from(products)
+        .where(and(eq(products.tenantId, ctx.tenant.id), inArray(products.id, unique), isNull(products.deletedAt))).for("update");
+      const open = await openTransfersByProduct(tx, ctx.tenant.id, unique);
+      const items = unique.map((id) => {
+        const r = rows.find((x) => x.id === id);
+        if (!r) return { id, label: null, status: "not_found" as const, warnings: [] as { code: string; qty?: number }[] };
+        const label = `${r.sku} · ${r.name}`;
+        if (open.has(id)) return { id, label, status: "blocked" as const, reason: { code: "IN_OPEN_TRANSFER", orders: open.get(id)! }, warnings: [] };
+        return { id, label, status: "ok" as const, warnings: r.stockQty !== 0 ? [{ code: "HAS_STOCK", qty: r.stockQty }] : [] };
+      });
+      const ok = items.filter((i) => i.status === "ok").map((i) => i.id);
+      let applied = 0;
+      if (!dryRun && ok.length) {
+        const done = await tx.update(products).set({ deletedAt: new Date() }).where(and(eq(products.tenantId, ctx.tenant.id), inArray(products.id, ok), isNull(products.deletedAt))).returning({ id: products.id, sku: products.sku });
+        for (const p of done) await audit({ ...auditBase(ctx), action: "product.deleted", entityType: "product", entityId: p.id, summary: `Produto ${p.sku} movido para a lixeira (eliminação em lote).` }, tx);
+        applied = done.length;
+      }
+      return { dryRun, items, applied };
+    });
+  });
+
   /* Stock */
   const productBody = z.object({
     sku: z.string().trim().min(1).max(40),
@@ -248,6 +305,8 @@ export async function businessRoutes(app: FastifyInstance) {
     const ctx = requireCtx(req);
     authorize(ctx, "inventory.delete");
     const { id } = parse(uuidParam, req.params);
+    const open = (await openTransfersByProduct(db, ctx.tenant.id, [id])).get(id);
+    if (open) throw new AppError(409, "PRODUCT_IN_OPEN_TRANSFER", `O produto está em guias de transferência por concluir (${open.join(", ")}). Conclua-as ou cancele-as antes de o eliminar.`, { orders: open });
     const [p] = await db.update(products).set({ deletedAt: new Date() }).where(and(eq(products.id, id), eq(products.tenantId, ctx.tenant.id), isNull(products.deletedAt))).returning();
     if (!p) throw notFound();
     await audit({ ...auditBase(ctx), action: "product.deleted", entityType: "product", entityId: id, summary: `Produto ${p.sku} movido para a lixeira.` });
@@ -411,4 +470,14 @@ export async function businessRoutes(app: FastifyInstance) {
     await audit({ ...auditBase(ctx), action: "finance.deleted", entityType: "finance_transaction", entityId: id, summary: `Movimento ${t.category} movido para a lixeira (retenção legal aplicável).` });
     return { ok: true };
   });
+}
+
+/** Guias de transferência por concluir (pedidas ou em trânsito) que contêm cada produto: id → números. */
+export async function openTransfersByProduct(tx: DbOrTx, tenantId: string, productIds: string[]) {
+  const out = new Map<string, string[]>();
+  if (!productIds.length) return out;
+  const open = await tx.select({ number: stockTransfers.number, lines: stockTransfers.lines }).from(stockTransfers)
+    .where(and(eq(stockTransfers.tenantId, tenantId), inArray(stockTransfers.status, ["requested", "in_transit"])));
+  for (const t of open) for (const l of t.lines) if (productIds.includes(l.productId)) out.set(l.productId, [...(out.get(l.productId) ?? []), t.number]);
+  return out;
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.22.0 — 2026-11-26
+- Eliminação em lote com pré-visualização (spec 11) em clientes e produtos:
+  - seleção de linhas nas tabelas (por linha ou a página inteira) e botão "Eliminar selecionados";
+  - pré-visualização por registo antes de confirmar: será eliminado, bloqueado ou ignorado, com avisos (stock existente, compras nos últimos 90 dias); nada é alterado até à confirmação;
+  - os registos vão para a lixeira (recuperáveis) e cada um fica auditado; as regras são reavaliadas na transação de aplicação; máximo de 100 registos por operação.
+- Produtos em guias de transferência por concluir (pedidas ou em trânsito) já não podem ser eliminados, nem em lote nem um a um, porque a receção deixaria de ser possível.
+- Corrigido um teste instável na extração de texto dos PDFs.
+- 124 testes.
+
 ## 0.21.0 — 2026-11-25
 - Aprendizagem contextual por empresa (spec 9.6). A opção já existia nas políticas de IA mas não tinha efeito; agora:
   - com consentimento (opção ligada), a IA dispõe de um perfil de padrões da própria empresa: dia mais forte, produtos principais, recorrência de clientes, melhor e pior mês, produtos no nível de reposição e despesas principais;

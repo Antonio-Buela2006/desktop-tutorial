@@ -255,11 +255,16 @@ export type Column<T> = { key: string; header: string; render?: (row: T) => Reac
 
 /** Tabela com pesquisa, ordenação, paginação e estados vazios/erro (dados paginados no servidor). */
 export function DataTable<T extends { id?: string }>({
-  columns, rows, total, page, pageSize, onPage, loading, error, search, onSearch, sort, onSort, toolbar, rowKey,
+  columns, rows, total, page, pageSize, onPage, loading, error, search, onSearch, sort, onSort, toolbar, rowKey, selected, onSelect,
 }: {
   columns: Column<T>[]; rows: T[] | undefined; total?: number; page?: number; pageSize?: number; onPage?: (p: number) => void; loading?: boolean; error?: unknown;
   search?: string; onSearch?: (s: string) => void; sort?: { key: string; dir: "asc" | "desc" }; onSort?: (k: string) => void; toolbar?: ReactNode; rowKey?: (r: T) => string;
+  /** Seleção de linhas para operações em lote (ids). */
+  selected?: Set<string>; onSelect?: (s: Set<string>) => void;
 }) {
+  const idOf = (r: T, i: number) => (rowKey ? rowKey(r) : r.id ?? String(i));
+  const pageIds = (rows ?? []).map(idOf);
+  const allOnPage = !!selected && pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const pages = total && pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
   const { tx, lang } = useTr();
   return (
@@ -281,6 +286,12 @@ export function DataTable<T extends { id?: string }>({
           <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
             <thead className="bg-slate-50 dark:bg-slate-900/60">
               <tr>
+                {onSelect && (
+                  <th className="th w-8">
+                    <input type="checkbox" aria-label={lang === "en" ? "Select all on this page" : "Selecionar todos nesta página"} checked={allOnPage}
+                      onChange={(e) => { const n = new Set(selected); pageIds.forEach((id) => (e.target.checked ? n.add(id) : n.delete(id))); onSelect(n); }} />
+                  </th>
+                )}
                 {columns.map((c) => (
                   <th key={c.key} className={cx("th", c.className)} aria-sort={sort?.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}>
                     {c.sortable && onSort ? <button className="uppercase" onClick={() => onSort(c.key)}>{tx(c.header)} {sort?.key === c.key ? (sort.dir === "asc" ? "↑" : "↓") : ""}</button> : tx(c.header)}
@@ -290,7 +301,13 @@ export function DataTable<T extends { id?: string }>({
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {rows.map((r, i) => (
-                <tr key={rowKey ? rowKey(r) : r.id ?? i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                <tr key={idOf(r, i)} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                  {onSelect && (
+                    <td className="td w-8">
+                      <input type="checkbox" aria-label={lang === "en" ? "Select row" : "Selecionar linha"} checked={!!selected?.has(idOf(r, i))}
+                        onChange={(e) => { const n = new Set(selected); e.target.checked ? n.add(idOf(r, i)) : n.delete(idOf(r, i)); onSelect(n); }} />
+                    </td>
+                  )}
                   {columns.map((c) => <td key={c.key} className={cx("td", c.className)}>{c.render ? c.render(r) : String((r as any)[c.key] ?? "—")}</td>)}
                 </tr>
               ))}
